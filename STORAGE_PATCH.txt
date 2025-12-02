@@ -1,0 +1,23 @@
+// Adicione estas linhas na interface IStorage (após linha 103):
+getAllUsers(): Promise<User[]>;
+deleteUser(id: string): Promise<void>;
+
+// Adicione estes métodos na classe DatabaseStorage (após o método upsertUser):
+async getAllUsers(): Promise<User[]> {
+  return await db.select().from(users).orderBy(desc(users.createdAt));
+}
+
+async deleteUser(id: string): Promise<void> {
+  await db.delete(users).where(eq(users.id, id));
+}
+
+// Adicione estes métodos na classe MemStorage (após o método upsertUser):
+async getAllUsers(): Promise<User[]> {
+  return Array.from(this.users.values())
+    .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+}
+
+async deleteUser(id: string): Promise<void> {
+  this.users.delete(id);
+  this.saveData();
+}
