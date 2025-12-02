@@ -20,6 +20,7 @@ import Behaviors from "@/pages/behaviors";
 import BehaviorEditor from "@/pages/behavior-editor";
 import Billing from "@/pages/billing";
 import Settings from "@/pages/settings";
+import SuperAdminPage from "@/pages/SuperAdminPage";
 import Broadcast from "@/pages/broadcast";
 import WebAssistants from "@/pages/web-assistants";
 import PublicChat from "@/pages/public-chat";
@@ -93,6 +94,7 @@ function AppContent() {
               <Route path="/broadcast" component={Broadcast} />
               <Route path="/billing" component={Billing} />
               <Route path="/settings" component={Settings} />
+              <Route path="/super-admin" component={SuperAdminPage} />
               <Route component={NotFound} />
             </Switch>
           </main>

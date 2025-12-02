@@ -101,6 +101,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Super Admin: List all users
+  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado: apenas administradores" });
+      }
+
+      // Get all users with device counts
+      const allUsers = await storage.getAllUsers();
+
+      // Enrich with device information
+      const usersWithDevices = await Promise.all(
+        allUsers.map(async (u) => {
+          const devices = await storage.getDevices(u.id);
+          const connectedDevices = devices.filter(d =>
+            whatsappManager.getWhatsAppSessionStatus(d.id) === 'READY'
+          ).length;
+
+          return {
+            ...u,
+            deviceCount: devices.length,
+            connectedDevices,
+          };
+        })
+      );
+
+      res.json(usersWithDevices);
+    } catch (error) {
+      console.error("Error fetching all users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Super Admin: Global statistics
+  app.get('/api/admin/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado: apenas administradores" });
+      }
+
+      const allUsers = await storage.getAllUsers();
+      const allDevices = await storage.getAllDevices();
+
+      const connectedDevices = allDevices.filter(d =>
+        whatsappManager.getWhatsAppSessionStatus(d.id) === 'READY'
+      ).length;
+
+      const freeUsers = allUsers.filter(u => u.currentPlan === 'free').length;
+      const basicUsers = allUsers.filter(u => u.currentPlan === 'basic').length;
+      const fullUsers = allUsers.filter(u => u.currentPlan === 'full').length;
+
+      const activeSubscriptions = allUsers.filter(u =>
+        u.currentPlan !== 'free' && u.stripeSubscriptionId
+      ).length;
+
+      // Calculate messages in last 24h (simplified - would need proper query)
+      const messagesLast24h = 0; // TODO: implement proper message counting
+
+      res.json({
+        totalUsers: allUsers.length,
+        activeSubscriptions,
+        freeUsers,
+        basicUsers,
+        fullUsers,
+        totalRevenue: 0, // TODO: calculate from Stripe
+        totalDevices: allDevices.length,
+        connectedDevices,
+        messagesLast24h,
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // Super Admin: Update user plan
+  app.post('/api/admin/users/:userId/update-plan', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const admin = await storage.getUser(adminId);
+
+      if (!admin?.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado: apenas administradores" });
+      }
+
+      const { userId } = req.params;
+      const { plan } = req.body;
+
+      if (!['free', 'basic', 'full'].includes(plan)) {
+        return res.status(400).json({ message: "Plano inválido" });
+      }
+
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      // Update plan with extended expiry
+      const planExpiresAt = plan === 'free'
+        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // 1 year for free
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days for paid
+
+      await storage.updateUser(userId, {
+        currentPlan: plan,
+        planExpiresAt,
+      });
+
+      res.json({ message: "Plano atualizado com sucesso" });
+    } catch (error) {
+      console.error("Error updating user plan:", error);
+      res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  // Super Admin: Delete user
+  app.delete('/api/admin/users/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const admin = await storage.getUser(adminId);
+
+      if (!admin?.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado: apenas administradores" });
+      }
+
+      const { userId } = req.params;
+      const targetUser = await storage.getUser(userId);
+
+      if (!targetUser) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      if (targetUser.isAdmin) {
+        return res.status(403).json({ message: "Não é possível deletar outro administrador" });
+      }
+
+      // Delete user's devices first
+      const devices = await storage.getDevices(userId);
+      for (const device of devices) {
+        await whatsappManager.destroyWhatsAppSession(device.id);
+        await storage.deleteDevice(device.id);
+      }
+
+      // Delete user
+      await storage.deleteUser(userId);
+
+      res.json({ message: "Usuário deletado com sucesso" });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+
   // ============ AUTH ROUTES ============
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {

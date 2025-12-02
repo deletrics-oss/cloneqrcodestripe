@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Smartphone, FileJson, Send, CreditCard, Settings, LogOut, BookOpen, Brain, Globe } from "lucide-react";
+import { Home, MessageSquare, Smartphone, FileJson, Send, CreditCard, Settings, LogOut, BookOpen, Brain, Globe, Crown } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
