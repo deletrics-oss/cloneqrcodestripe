@@ -309,6 +309,27 @@ export const insertBroadcastTemplateSchema = createInsertSchema(broadcastTemplat
 export type BroadcastTemplate = typeof broadcastTemplates.$inferSelect;
 export type InsertBroadcastTemplate = z.infer<typeof insertBroadcastTemplateSchema>;
 
+// ============ MESSAGE TEMPLATES ============
+
+export const messageTemplates = pgTable("message_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: varchar("name").notNull(),
+  content: text("content").notNull(),
+  category: varchar("category"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MessageTemplate = typeof messageTemplates.$inferSelect;
+export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
+
 // ============ RELATIONS ============
 
 export const usersRelations = relations(users, ({ many }) => ({
