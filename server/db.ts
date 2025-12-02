@@ -1,6 +1,8 @@
-import { Pool } from 'pg';
+import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
+
+const { Pool } = pg;
 
 // Get DATABASE_URL from environment
 const databaseUrl = process.env.DATABASE_URL;
