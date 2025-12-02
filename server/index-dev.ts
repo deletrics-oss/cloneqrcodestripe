@@ -1,3 +1,6 @@
+// Allow self-signed certificates for local development (fixes WebSocket/DB connection issues)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 // Load environment variables from .replit secrets first
 import "./loadEnv";
 
