@@ -54,6 +54,13 @@ export interface IStorage {
   updateDevice(id: string, data: Partial<WhatsappDevice>): Promise<WhatsappDevice>;
   updateDevice(id: string, data: Partial<WhatsappDevice>): Promise<WhatsappDevice>;
   deleteDevice(id: string): Promise<void>;
+
+  // Message Templates
+  createTemplate(template: InsertMessageTemplate): Promise<MessageTemplate>;
+  getTemplates(userId: string): Promise<MessageTemplate[]>;
+  updateTemplate(id: string, template: Partial<InsertMessageTemplate>): Promise<MessageTemplate>;
+  deleteTemplate(id: string): Promise<void>;
+
   getAllDevices(): Promise<WhatsappDevice[]>; // Added for system restoration
   // Conversations
   getConversations(deviceId: string): Promise<Conversation[]>;
@@ -182,6 +189,37 @@ export class DatabaseStorage implements IStorage {
   async deleteDevice(id: string): Promise<void> {
     await db.delete(whatsappDevices).where(eq(whatsappDevices.id, id));
   }
+
+  // Message Templates
+  async createTemplate(template: InsertMessageTemplate): Promise<MessageTemplate> {
+    const [newTemplate] = await db
+      .insert(messageTemplates)
+      .values(template)
+      .returning();
+    return newTemplate;
+  }
+
+  async getTemplates(userId: string): Promise<MessageTemplate[]> {
+    return await db
+      .select()
+      .from(messageTemplates)
+      .where(eq(messageTemplates.userId, userId))
+      .orderBy(desc(messageTemplates.createdAt));
+  }
+
+  async updateTemplate(id: string, template: Partial<InsertMessageTemplate>): Promise<MessageTemplate> {
+    const [updatedTemplate] = await db
+      .update(messageTemplates)
+      .set({ ...template, updatedAt: new Date() })
+      .where(eq(messageTemplates.id, id))
+      .returning();
+    return updatedTemplate;
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    await db.delete(messageTemplates).where(eq(messageTemplates.id, id));
+  }
+
   async getAllDevices(): Promise<WhatsappDevice[]> {
     return await db.select().from(whatsappDevices);
   }
@@ -339,7 +377,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(botBehaviorConfigs)
       .where(eq(botBehaviorConfigs.isPreset, true));
-    // Se não há presets no banco, retornar presets constantes
+    // Se nï¿½o hï¿½ presets no banco, retornar presets constantes
     if (dbPresets.length === 0) {
       return PRESET_BEHAVIORS;
     }
@@ -501,14 +539,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(webAssistants).where(eq(webAssistants.id, id));
   }
 }
-// Comportamentos Padrões (Presets)
+// Comportamentos Padrï¿½es (Presets)
 const PRESET_BEHAVIORS: BotBehaviorConfig[] = [
   {
     id: 'preset-professional',
     userId: 'system',
     name: 'Profissional',
     tone: 'formal',
-    personality: 'Sou um assistente profissional e cortês. Falo de forma clara e objetiva, sempre mantendo respeito e formalidade.',
+    personality: 'Sou um assistente profissional e cortï¿½s. Falo de forma clara e objetiva, sempre mantendo respeito e formalidade.',
     responseStyle: 'concise',
     customInstructions: 'Use linguagem formal. Sempre cumprimente educadamente.',
     isActive: true,
@@ -519,11 +557,11 @@ const PRESET_BEHAVIORS: BotBehaviorConfig[] = [
   {
     id: 'preset-friendly',
     userId: 'system',
-    name: 'Amigável',
+    name: 'Amigï¿½vel',
     tone: 'friendly',
-    personality: 'Sou um assistente amigável e acolhedor. Converso de forma calorosa e empática, criando conexão genuína.',
+    personality: 'Sou um assistente amigï¿½vel e acolhedor. Converso de forma calorosa e empï¿½tica, criando conexï¿½o genuï¿½na.',
     responseStyle: 'detailed',
-    customInstructions: 'Use tom amigável. Mostre empatia e interesse genuíno.',
+    customInstructions: 'Use tom amigï¿½vel. Mostre empatia e interesse genuï¿½no.',
     isActive: true,
     isPreset: true,
     createdAt: new Date(),
@@ -534,9 +572,9 @@ const PRESET_BEHAVIORS: BotBehaviorConfig[] = [
     userId: 'system',
     name: 'Vendas',
     tone: 'persuasive',
-    personality: 'Sou um assistente de vendas consultivo. Identifico necessidades e apresento soluções de forma persuasiva mas não invasiva.',
+    personality: 'Sou um assistente de vendas consultivo. Identifico necessidades e apresento soluï¿½ï¿½es de forma persuasiva mas nï¿½o invasiva.',
     responseStyle: 'detailed',
-    customInstructions: 'Foque em benefícios. Faça perguntas qualificadoras. Conduza para conversão.',
+    customInstructions: 'Foque em benefï¿½cios. Faï¿½a perguntas qualificadoras. Conduza para conversï¿½o.',
     isActive: true,
     isPreset: true,
     createdAt: new Date(),
@@ -545,11 +583,11 @@ const PRESET_BEHAVIORS: BotBehaviorConfig[] = [
   {
     id: 'preset-support',
     userId: 'system',
-    name: 'Suporte Técnico',
+    name: 'Suporte Tï¿½cnico',
     tone: 'empathetic',
-    personality: 'Sou um assistente de suporte técnico prestativo. Resolvo problemas de forma clara, paciente e didática.',
+    personality: 'Sou um assistente de suporte tï¿½cnico prestativo. Resolvo problemas de forma clara, paciente e didï¿½tica.',
     responseStyle: 'detailed',
-    customInstructions: 'Seja paciente. Explique passo a passo. Confirme resolução do problema.',
+    customInstructions: 'Seja paciente. Explique passo a passo. Confirme resoluï¿½ï¿½o do problema.',
     isActive: true,
     isPreset: true,
     createdAt: new Date(),
@@ -571,7 +609,7 @@ export class MemStorage implements IStorage {
   private webAssistants = new Map<string, WebAssistant>();
   constructor() {
     this.loadData();
-    // Inicializar presets se não existirem
+    // Inicializar presets se nï¿½o existirem
     PRESET_BEHAVIORS.forEach(preset => {
       if (!this.botBehaviors.has(preset.id)) {
         this.botBehaviors.set(preset.id, preset);
@@ -1004,5 +1042,5 @@ export class MemStorage implements IStorage {
     this.saveData();
   }
 }
-// Exportação dinâmica: usa DatabaseStorage se DATABASE_URL existir, senão usa MemStorage
+// Exportaï¿½ï¿½o dinï¿½mica: usa DatabaseStorage se DATABASE_URL existir, senï¿½o usa MemStorage
 export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();

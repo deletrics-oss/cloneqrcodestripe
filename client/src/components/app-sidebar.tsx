@@ -32,6 +32,11 @@ const menuItems = [
     icon: Send,
   },
   {
+    title: "Templates",
+    url: "/templates",
+    icon: FileJson,
+  },
+  {
     title: "Conversas",
     url: "/chat",
     icon: MessageSquare,

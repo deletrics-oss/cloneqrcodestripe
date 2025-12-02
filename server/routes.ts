@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import { GoogleGenAI } from "@google/genai";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./localAuth";
-import { insertWhatsappDeviceSchema, insertConversationSchema, insertMessageSchema, insertLogicConfigSchema, insertWebAssistantSchema, insertBroadcastTemplateSchema } from "@shared/schema";
+import { insertWhatsappDeviceSchema, insertConversationSchema, insertMessageSchema, insertLogicConfigSchema, insertWebAssistantSchema, insertBroadcastTemplateSchema, insertMessageTemplateSchema } from "@shared/schema";
 import { executeLogic, type LogicJson } from "./logicExecutor";
 import { z } from "zod";
 import * as whatsappManager from "./whatsappManager";
@@ -77,6 +77,103 @@ function getAI(userApiKey?: string | null) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+
+  // ============ MESSAGE TEMPLATES ROUTES ============
+
+  // List templates
+  app.get('/api/templates', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const templates = await storage.getTemplates(userId);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  // Create template
+  app.post('/api/templates', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertMessageTemplateSchema.parse({
+        ...req.body,
+        userId,
+      });
+      const template = await storage.createTemplate(data);
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating template:", error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  // Update template
+  app.put('/api/templates/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const template = await storage.updateTemplate(id, req.body);
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating template:", error);
+      res.status(500).json({ message: "Failed to update template" });
+    }
+  });
+
+  // Delete template
+  app.delete('/api/templates/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      await storage.deleteTemplate(id);
+      res.json({ message: "Template deleted" });
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  // AI Edit Template
+  app.post('/api/ai/edit-template', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { content, instruction } = req.body;
+
+      if (!content || !instruction) {
+        return res.status(400).json({ message: "Content and instruction are required" });
+      }
+
+      const ai = getAI();
+      if (!ai) {
+        return res.status(500).json({ message: "AI service not configured" });
+      }
+
+      const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const prompt = `
+        You are an AI assistant that edits text based on instructions.
+        
+        ORIGINAL TEXT:
+        ${content}
+        
+        INSTRUCTION:
+        ${instruction}
+        
+        Please provide the EDITED TEXT based on the instruction.
+        Maintain the original format as much as possible unless asked to change it.
+        Return ONLY the edited text, no explanations.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const editedText = response.text();
+
+      res.json({ original: content, edited: editedText });
+    } catch (error) {
+      console.error("Error editing template with AI:", error);
+      res.status(500).json({ message: "Failed to edit template" });
+    }
+  });
 
   // ============ ADMIN ROUTES ============
   app.post('/api/admin/promote', isAuthenticated, async (req: any, res) => {
