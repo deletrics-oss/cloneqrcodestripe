@@ -30,6 +30,9 @@ import {
   broadcastTemplates,
   type BroadcastTemplate,
   type InsertBroadcastTemplate,
+  messageTemplates,
+  type MessageTemplate,
+  type InsertMessageTemplate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
@@ -192,9 +195,10 @@ export class DatabaseStorage implements IStorage {
 
   // Message Templates
   async createTemplate(template: InsertMessageTemplate): Promise<MessageTemplate> {
+    const id = nanoid();
     const [newTemplate] = await db
       .insert(messageTemplates)
-      .values(template)
+      .values({ ...template, id })
       .returning();
     return newTemplate;
   }
