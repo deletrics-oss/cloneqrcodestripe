@@ -1,36 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Send, Search, MoreVertical } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Conversation, Message } from "@shared/schema";
-import { cn } from "@/lib/utils";
-
-function ContactAvatar({ deviceId, contactId, name, className }: { deviceId: string, contactId: string, name: string, className?: string }) {
-  const { data } = useQuery({
-    queryKey: ['/api/whatsapp/contacts', deviceId, contactId, 'pic'],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/whatsapp/contacts/${deviceId}/${contactId}/pic`);
-      return res.json();
-    },
-    staleTime: 1000 * 60 * 60, // 1 hour
-    enabled: !!deviceId && !!contactId
-  });
-
-  return (
-    <Avatar className={className}>
-      <AvatarImage src={data?.url} alt={name} />
-      <AvatarFallback>{name[0]}</AvatarFallback>
-    </Avatar>
-  );
-}
+import { Send, Search, MoreVertical, RefreshCw } from "lucide-react";
+// ... imports
 
 export default function Chat() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -38,48 +9,59 @@ export default function Chat() {
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
 
+  const { data: devices } = useQuery<any[]>({
+    queryKey: ['/api/devices'],
+  });
+
   const { data: conversations, isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
   });
 
-  const { data: messages, isLoading: messagesLoading } = useQuery<Message[]>({
-    queryKey: ['/api/conversations', selectedConversationId, 'messages'],
-    enabled: !!selectedConversationId,
-  });
+  const syncContactsMutation = useMutation({
+    mutationFn: async () => {
+      if (!devices) return;
+      const connectedDevices = devices.filter((d: any) => d.connectionStatus === 'connected');
 
-  const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return await apiRequest("POST", `/api/conversations/${selectedConversationId}/messages`, {
-        content,
-        direction: 'outgoing',
-        isFromBot: false,
-      });
+      if (connectedDevices.length === 0) {
+        throw new Error("Nenhum dispositivo conectado");
+      }
+
+      await Promise.all(connectedDevices.map((device: any) =>
+        apiRequest("POST", `/api/whatsapp/sync-contacts/${device.id}`)
+      ));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/conversations', selectedConversationId, 'messages'] });
-      setMessageText("");
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      toast({ title: "Contatos sincronizados com sucesso!" });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
-        title: "Erro",
-        description: "Não foi possível enviar a mensagem",
-        variant: "destructive",
+        title: "Erro ao sincronizar",
+        description: error instanceof Error ? error.message : "Tente novamente mais tarde",
+        variant: "destructive"
       });
-    },
+    }
   });
 
-  const filteredConversations = conversations?.filter((conv) =>
-    conv.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.contactPhone.includes(searchQuery)
-  ) || [];
-
-  const selectedConversation = conversations?.find(c => c.id === selectedConversationId);
+  // ... (rest of the component)
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Conversations List */}
       <div className="w-full md:w-96 border-r border-border flex flex-col">
         <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-lg">Conversas</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => syncContactsMutation.mutate()}
+              disabled={syncContactsMutation.isPending}
+              title="Sincronizar nomes dos contatos"
+            >
+              <RefreshCw className={cn("h-4 w-4", syncContactsMutation.isPending && "animate-spin")} />
+            </Button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input

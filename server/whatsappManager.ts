@@ -419,7 +419,7 @@ export async function sendWhatsAppMessage(
   }
 }
 
-export async function getWhatsAppContacts(deviceId: string): Promise<any[]> {
+export async function getWhatsAppContacts(deviceId: string, includeGroups: boolean = false): Promise<any[]> {
   const session = sessions.get(deviceId);
 
   if (!session || session.status !== 'READY') {
@@ -440,7 +440,7 @@ export async function getWhatsAppContacts(deviceId: string): Promise<any[]> {
 
     // Use chat properties directly to avoid getContact() crash
     const contacts = chats
-      .filter(chat => !chat.isGroup)
+      .filter(chat => includeGroups ? true : !chat.isGroup)
       .map((chat) => {
         try {
           // chat.id._serialized is like "551199999999@c.us"
@@ -451,7 +451,8 @@ export async function getWhatsAppContacts(deviceId: string): Promise<any[]> {
             id: chat.id._serialized,
             name: chat.name || number,
             number: number,
-            profilePicUrl: null // Skip profile pic to be safe and fast
+            profilePicUrl: null, // Skip profile pic to be safe and fast
+            isGroup: chat.isGroup
           };
         } catch (err) {
           console.error(`[WhatsApp] Error mapping chat:`, err);
@@ -465,6 +466,45 @@ export async function getWhatsAppContacts(deviceId: string): Promise<any[]> {
   } catch (error) {
     console.error(`[WhatsApp] Error fetching contacts for device ${deviceId}:`, error);
     return [];
+  }
+}
+
+export async function syncContacts(deviceId: string): Promise<boolean> {
+  const session = sessions.get(deviceId);
+  if (!session || session.status !== 'READY') return false;
+
+  try {
+    console.log(`[WhatsApp] Syncing contacts for device ${deviceId}...`);
+    const chats = await session.client.getChats();
+
+    // Get existing conversations from DB
+    const dbConversations = await storage.getConversations(deviceId);
+
+    let updatedCount = 0;
+
+    for (const chat of chats) {
+      if (chat.isGroup) continue; // Skip groups for now for conversation sync
+
+      const number = chat.id.user;
+      const name = chat.name || number;
+
+      // Find matching conversation
+      const conversation = dbConversations.find(c => c.contactPhone === number);
+
+      if (conversation) {
+        // Update name if different
+        if (conversation.contactName !== name) {
+          await storage.updateConversation(conversation.id, { contactName: name });
+          updatedCount++;
+        }
+      }
+    }
+
+    console.log(`[WhatsApp] Synced ${updatedCount} conversation names`);
+    return true;
+  } catch (error) {
+    console.error(`[WhatsApp] Error syncing contacts:`, error);
+    return false;
   }
 }
 

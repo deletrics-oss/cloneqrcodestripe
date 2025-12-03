@@ -208,24 +208,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Acesso negado: apenas administradores" });
       }
 
-      // Get all users with device counts
-      const allUsers = await storage.getAllUsers();
+      // Get all users and all devices in parallel (optimized)
+      const [allUsers, allDevices] = await Promise.all([
+        storage.getAllUsers(),
+        storage.getAllDevices()
+      ]);
 
-      // Enrich with device information
-      const usersWithDevices = await Promise.all(
-        allUsers.map(async (u) => {
-          const devices = await storage.getDevices(u.id);
-          const connectedDevices = devices.filter(d =>
-            whatsappManager.getWhatsAppSessionStatus(d.id) === 'READY'
-          ).length;
+      // Group devices by userId for O(1) lookup
+      const devicesByUser = new Map<string, typeof allDevices>();
+      for (const device of allDevices) {
+        if (!devicesByUser.has(device.userId)) {
+          devicesByUser.set(device.userId, []);
+        }
+        devicesByUser.get(device.userId)!.push(device);
+      }
 
-          return {
-            ...u,
-            deviceCount: devices.length,
-            connectedDevices,
-          };
-        })
-      );
+      // Enrich users with device information (no async needed now)
+      const usersWithDevices = allUsers.map((u) => {
+        const devices = devicesByUser.get(u.id) || [];
+        const connectedDevices = devices.filter(d =>
+          whatsappManager.getWhatsAppSessionStatus(d.id) === 'READY'
+        ).length;
+
+        return {
+          ...u,
+          deviceCount: devices.length,
+          connectedDevices,
+        };
+      });
 
       res.json(usersWithDevices);
     } catch (error) {
@@ -1642,11 +1652,39 @@ Responda APENAS com o JSON modificado válido, sem explicações adicionais.`;
       }
 
       // Get contacts from WhatsApp
-      const contacts = await whatsappManager.getWhatsAppContacts(req.params.deviceId);
+      const includeGroups = req.query.includeGroups === 'true';
+      const contacts = await whatsappManager.getWhatsAppContacts(req.params.deviceId, includeGroups);
       res.json(contacts);
     } catch (error) {
       console.error("Error fetching contacts:", error);
       res.status(500).json({ message: "Failed to fetch contacts" });
+    }
+  });
+
+  // Sync contacts to conversations
+  app.post('/api/whatsapp/sync-contacts/:deviceId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const device = await storage.getDevice(req.params.deviceId);
+
+      if (!device || device.userId !== userId) {
+        return res.status(404).json({ message: "Device not found" });
+      }
+
+      if (device.connectionStatus !== 'connected') {
+        return res.status(400).json({ message: "Device not connected" });
+      }
+
+      const success = await whatsappManager.syncContacts(req.params.deviceId);
+
+      if (success) {
+        res.json({ message: "Contatos sincronizados com sucesso" });
+      } else {
+        res.status(500).json({ message: "Falha ao sincronizar contatos" });
+      }
+    } catch (error) {
+      console.error("Error syncing contacts:", error);
+      res.status(500).json({ message: "Failed to sync contacts" });
     }
   });
 

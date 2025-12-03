@@ -46,6 +46,27 @@ export default function MessageTemplates() {
     const [aiInstruction, setAiInstruction] = useState("");
     const [aiResult, setAiResult] = useState("");
     const [isAiLoading, setIsAiLoading] = useState(false);
+    const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+    const handleAiGenerate = async () => {
+        if (!newName) {
+            toast({ title: "Erro", description: "Digite um nome para o template para dar contexto à IA", variant: "destructive" });
+            return;
+        }
+        setIsAiGenerating(true);
+        try {
+            const res = await apiRequest("POST", "/api/ai/generate-broadcast", {
+                prompt: `Crie um modelo de mensagem para WhatsApp sobre: ${newName}. Categoria: ${newCategory}.`,
+                context: ""
+            });
+            const data = await res.json();
+            setNewContent(data.message);
+        } catch (error) {
+            toast({ title: "Erro", description: "Falha ao gerar mensagem", variant: "destructive" });
+        } finally {
+            setIsAiGenerating(false);
+        }
+    };
 
     const { data: templates, isLoading } = useQuery<MessageTemplate[]>({
         queryKey: ['/api/templates'],
@@ -244,7 +265,20 @@ export default function MessageTemplates() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Conteúdo</label>
+                            <div className="flex justify-between items-center">
+                                <label className="text-sm font-medium">Conteúdo</label>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                                    onClick={handleAiGenerate}
+                                    disabled={isAiGenerating}
+                                >
+                                    {isAiGenerating ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Wand2 className="w-3 h-3 mr-1" />}
+                                    Gerar com IA
+                                </Button>
+                            </div>
                             <Textarea
                                 value={newContent}
                                 onChange={(e) => setNewContent(e.target.value)}

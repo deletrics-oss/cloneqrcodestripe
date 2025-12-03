@@ -402,16 +402,64 @@ export default function BroadcastPage() {
                   </div>
 
                   <div className="space-y-2">
+                    const [includeGroups, setIncludeGroups] = useState(false);
+
+                    const {data: contacts, isLoading: loadingContacts } = useQuery<Contact[]>({
+                      queryKey: ['/api/whatsapp/contacts', selectedDevice, includeGroups],
+    queryFn: async () => {
+      if (!selectedDevice) return [];
+                    const res = await apiRequest("GET", `/api/whatsapp/contacts/${selectedDevice}?includeGroups=${includeGroups}`);
+                    return res.json();
+    },
+                    enabled: !!selectedDevice,
+  });
+
+  const filteredContacts = contacts?.filter(c =>
+                    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    c.number.includes(searchTerm)
+                    );
+
+  const handleSelectAll = (checked: boolean) => {
+                      setSelectAll(checked);
+                    if (checked && filteredContacts) {
+      const newIds = filteredContacts.map(c => c.number);
+      setSelectedContacts(prev => {
+        const unique = new Set([...prev, ...newIds]);
+                    return Array.from(unique);
+      });
+    } else {
+      if (searchTerm && filteredContacts) {
+        // Uncheck only visible
+        const visibleIds = filteredContacts.map(c => c.number);
+        setSelectedContacts(prev => prev.filter(id => !visibleIds.includes(id)));
+      } else {
+                      setSelectedContacts([]);
+      }
+    }
+  };
+
+                    // ... (rest of the file)
+
                     <div className="flex items-center justify-between">
                       <Label>Contatos ({selectedContacts.length} selecionados)</Label>
-                      <div className="relative w-48">
-                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-8 h-9"
-                        />
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="include-groups"
+                            checked={includeGroups}
+                            onCheckedChange={(checked) => setIncludeGroups(checked as boolean)}
+                          />
+                          <Label htmlFor="include-groups" className="text-sm cursor-pointer">Incluir Grupos</Label>
+                        </div>
+                        <div className="relative w-48">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8 h-9"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="border rounded-md p-2 h-60 overflow-y-auto space-y-2">
