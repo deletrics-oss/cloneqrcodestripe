@@ -38,6 +38,7 @@ export default function BroadcastPage() {
   const [delay, setDelay] = useState(20);
   const [searchTerm, setSearchTerm] = useState("");
   const [includeGroups, setIncludeGroups] = useState(false);
+  const [displayLimit, setDisplayLimit] = useState(50); // Pagination limit
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -447,21 +448,35 @@ export default function BroadcastPage() {
                       {loadingContacts ? (
                         [1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)
                       ) : filteredContacts && filteredContacts.length > 0 ? (
-                        filteredContacts.map((contact) => (
-                          <div key={contact.id} className="flex items-center space-x-2 p-2 hover:bg-muted/50 rounded-md">
-                            <Checkbox
-                              id={contact.id}
-                              checked={selectedContacts.includes(contact.number)}
-                              onCheckedChange={(checked) => handleContactToggle(contact.number, checked as boolean)}
-                              data-testid={`checkbox-contact-${contact.number}`}
-                            />
-                            <Label htmlFor={contact.id} className="flex-1 cursor-pointer text-sm">
-                              {contact.name}
-                              <span className="block text-xs text-muted-foreground">{contact.number}</span>
-                            </Label>
-                            {contact.isGroup && <Badge variant="secondary" className="text-xs">Grupo</Badge>}
-                          </div>
-                        ))
+                        <>
+                          {filteredContacts.slice(0, displayLimit).map((contact) => (
+                            <div key={contact.id} className="flex items-center space-x-2 p-2 hover:bg-muted/50 rounded-md">
+                              <Checkbox
+                                id={contact.id}
+                                checked={selectedContacts.includes(contact.number)}
+                                onCheckedChange={(checked) => handleContactToggle(contact.number, checked as boolean)}
+                                data-testid={`checkbox-contact-${contact.number}`}
+                              />
+                              <Label htmlFor={contact.id} className="flex-1 cursor-pointer text-sm">
+                                {contact.name}
+                                <span className="block text-xs text-muted-foreground">{contact.number}</span>
+                              </Label>
+                              {contact.isGroup && <Badge variant="secondary" className="text-xs">Grupo</Badge>}
+                            </div>
+                          ))}
+                          {filteredContacts.length > displayLimit && (
+                            <div className="pt-2 text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDisplayLimit(prev => prev + 50)}
+                                className="w-full text-muted-foreground"
+                              >
+                                Carregar mais ({filteredContacts.length - displayLimit} restantes)
+                              </Button>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           Nenhum contato encontrado

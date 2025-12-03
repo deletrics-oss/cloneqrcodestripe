@@ -12,7 +12,7 @@ export function ContactAvatar({ deviceId, contactId, name, className }: ContactA
     // Logic to construct image URL if backend supports it
     // For now, we'll assume a standard path or just use initials
     const imageUrl = deviceId && contactId
-        ? `/api/whatsapp/contact-photo/${deviceId}/${contactId}`
+        ? `/api/whatsapp/contacts/${deviceId}/${contactId}/pic`
         : undefined;
 
     const initials = name
