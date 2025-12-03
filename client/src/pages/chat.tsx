@@ -13,6 +13,7 @@ import { ContactAvatar } from "@/components/ContactAvatar";
 import type { Conversation } from "@shared/schema";
 
 export default function Chat() {
+  console.log("Chat component rendering");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
