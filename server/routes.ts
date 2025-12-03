@@ -226,44 +226,101 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
       const templates = [
         {
           id: "template_welcome",
-          name: "Saudação Simples",
-          description: "Responde a saudações básicas como Oi, Olá, Bom dia.",
-          logicJson: {
+          name: "Saudacao Simples",
+          category: "Basico",
+          description: "Responde a saudacoes basicas como Oi, Ola, Bom dia.",
+          logic: {
             rules: [
               {
-                keywords: ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"],
-                reply: "Olá! Como posso ajudar você hoje? 😊"
+                keywords: ["oi", "ola", "bom dia", "boa tarde", "boa noite", "hey", "hello"],
+                reply: "Ola! 👋 Como posso ajudar voce hoje?"
               }
             ],
-            default_reply: "",
+            default_reply: "Desculpe, nao entendi. Por favor, reformule sua pergunta.",
             pause_bot_after_reply: false
           },
           logicType: "json"
         },
         {
           id: "template_menu",
-          name: "Menu de Opções",
+          name: "Menu de Opcoes",
+          category: "Atendimento",
           description: "Apresenta um menu numerado para o cliente.",
-          logicJson: {
+          logic: {
             rules: [
               {
-                keywords: ["menu", "opções", "ajuda"],
-                reply: "Aqui está nosso menu:\n1. Ver Planos\n2. Falar com Suporte\n3. Sair\n\nDigite o número da opção desejada."
+                keywords: ["menu", "opcoes", "ajuda", "inicio"],
+                reply: "📋 *Menu Principal*\n\n1️⃣ Ver Produtos\n2️⃣ Fazer Pedido\n3️⃣ Falar com Atendente\n4️⃣ Horario de Funcionamento\n\nDigite o numero da opcao desejada."
               },
               {
-                keywords: ["1", "planos"],
-                reply: "Temos planos a partir de R$ 29,90! Acesse nosso site para ver mais."
+                keywords: ["1", "produtos", "produto"],
+                reply: "🛍️ *Nossos Produtos:*\n\n- Plano Basico: R$ 29,90/mes\n- Plano Premium: R$ 59,90/mes\n- Plano Empresarial: R$ 99,90/mes\n\nPara mais detalhes, digite 'mais info' ou 'menu'."
               },
               {
-                keywords: ["2", "suporte"],
-                reply: "Um atendente irá falar com você em instantes. Aguarde..."
+                keywords: ["2", "pedido", "comprar"],
+                reply: "📦 *Fazer Pedido*\n\nPor favor, me informe:\n1. Qual produto deseja?\n2. Forma de pagamento (PIX, Cartao, Boleto)\n\nOu digite 'menu' para voltar."
               },
               {
-                keywords: ["3", "sair"],
-                reply: "Obrigado pelo contato! Até logo. 👋"
+                keywords: ["3", "atendente", "suporte", "humano"],
+                reply: "👤 Um atendente ira falar com voce em instantes.\n\nAguarde um momento... ⏳",
+                pause_bot: true
+              },
+              {
+                keywords: ["4", "horario", "horarios", "funcionamento"],
+                reply: "🕐 *Horario de Atendimento:*\n\nSeg-Sex: 9h as 18h\nSabado: 9h as 13h\nDomingo: Fechado\n\nDigite 'menu' para voltar."
               }
             ],
-            default_reply: "Desculpe, não entendi. Digite 'menu' para ver as opções.",
+            default_reply: "Desculpe, nao entendi. Digite *menu* para ver as opcoes.",
+            pause_bot_after_reply: false
+          },
+          logicType: "json"
+        },
+        {
+          id: "template_faq",
+          name: "FAQ Automatico",
+          category: "Suporte",
+          description: "Responde perguntas frequentes automaticamente.",
+          logic: {
+            rules: [
+              {
+                keywords: ["preco", "valor", "quanto custa", "custo"],
+                reply: "💰 *Nossos Precos:*\n\nPlano Basico: R$ 29,90/mes\nPlano Premium: R$ 59,90/mes\nPlano Empresarial: R$ 99,90/mes\n\nTodos com 7 dias de teste gratis! 🎁"
+              },
+              {
+                keywords: ["horario", "aberto", "fecha", "funcionamento"],
+                reply: "🕐 Atendemos de Seg-Sex das 9h as 18h e Sabado das 9h as 13h."
+              },
+              {
+                keywords: ["entrega", "prazo", "demora"],
+                reply: "📦 Prazo de entrega: 3 a 5 dias uteis para todo Brasil via Correios."
+              },
+              {
+                keywords: ["pagamento", "pagar", "formas"],
+                reply: "💳 Aceitamos: PIX, Cartao de Credito, Boleto e Transferencia Bancaria."
+              },
+              {
+                keywords: ["cancelar", "cancelamento", "devolver"],
+                reply: "🔄 Voce pode cancelar a qualquer momento. Entre em contato com nosso suporte digitando 'atendente'."
+              }
+            ],
+            default_reply: "Nao encontrei resposta para sua duvida. Digite 'atendente' para falar com nosso time.",
+            pause_bot_after_reply: false
+          },
+          logicType: "json"
+        },
+        {
+          id: "template_welcome_complete",
+          name: "Boas-Vindas Completo",
+          category: "Atendimento",
+          description: "Mensagem de boas-vindas com menu integrado.",
+          logic: {
+            rules: [
+              {
+                keywords: ["oi", "ola", "bom dia", "boa tarde", "boa noite", "inicio", "comecar"],
+                reply: "Ola! 👋 Bem-vindo(a)!\n\n📋 *Como posso ajudar?*\n\n1️⃣ Ver Produtos\n2️⃣ Fazer Pedido\n3️⃣ Suporte\n4️⃣ Rastrear Pedido\n\nDigite o numero da opcao."
+              }
+            ],
+            default_reply: "Digite 'oi' para comecar!",
             pause_bot_after_reply: false
           },
           logicType: "json"

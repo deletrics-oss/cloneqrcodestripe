@@ -377,7 +377,12 @@ export async function sendWhatsAppMessage(
   }
 
   try {
-    const chatId = `${number.replace(/\D/g, '')}@c.us`;
+    // Use number as-is if it already has @lid or @c.us, otherwise format it
+    let chatId = number;
+    if (!number.includes('@')) {
+      chatId = `${number.replace(/\D/g, '')}@c.us`;
+    }
+
 
     if (mediaUrl) {
       try {
