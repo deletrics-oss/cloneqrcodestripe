@@ -138,10 +138,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ai/edit-template', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { content, instruction } = req.body;
+      const { content, instruction, currentJson, prompt, sourceType, sourceContent, useEmojis } = req.body;
 
-      if (!content || !instruction) {
-        return res.status(400).json({ message: "Content and instruction are required" });
+      // Support both old format (content/instruction) and new format (currentJson/prompt)
+      const textToEdit = content || (currentJson ? JSON.stringify(currentJson, null, 2) : "");
+      const userPrompt = instruction || prompt || "";
+
+      if (!textToEdit || !userPrompt) {
+        return res.status(400).json({ message: "Content/currentJson and instruction/prompt are required" });
       }
 
       const user = await storage.getUser(userId);
@@ -152,28 +156,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "AI service not configured - Check server logs for API Key issues" });
       }
 
-      const prompt = `
-        You are an AI assistant that edits text based on instructions.
+      // Build context from source if provided
+      let context = "";
+      if (sourceType === 'url' && sourceContent) {
+        let browser;
+        try {
+          const puppeteer = (await import('puppeteer')).default;
+          browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+          });
+          const page = await browser.newPage();
+          await page.goto(sourceContent, { waitUntil: 'networkidle2', timeout: 30000 });
+          context = await page.evaluate(() => document.body.innerText);
+          await browser.close();
+          context = context.slice(0, 10000);
+        } catch (e: any) {
+          console.error("[AI Edit] Scraping error:", e.message);
+          if (browser) await browser.close().catch(() => { });
+        }
+      } else if (sourceType === 'text' && sourceContent) {
+        context = sourceContent;
+      }
+
+      const systemPrompt = `You are an AI assistant that edits text based on instructions.
         
-        ORIGINAL TEXT:
-        ${content}
-        
-        INSTRUCTION:
-        ${instruction}
-        
-        Please provide the EDITED TEXT based on the instruction.
-        Maintain the original format as much as possible unless asked to change it.
-        Return ONLY the edited text, no explanations.
-      `;
+${context ? `CONTEXT FROM SOURCE:\n${context.slice(0, 5000)}\n\n` : ''}
+ORIGINAL TEXT:
+${textToEdit}
+
+INSTRUCTION:
+${userPrompt}
+
+Please provide the EDITED TEXT based on the instruction.
+${useEmojis ? 'You can use emojis to make it more engaging.' : 'Avoid using emojis.'}
+Maintain the original format as much as possible unless asked to change it.
+${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the edited text, no explanations.'}`;
 
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
-        contents: prompt,
+        contents: systemPrompt,
       });
 
       const editedText = response.text || "";
 
-      res.json({ original: content, edited: editedText });
+      // Try to parse as JSON if it was JSON input
+      if (currentJson) {
+        try {
+          const cleanedText = editedText.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsedJson = JSON.parse(cleanedText);
+          return res.json({ original: currentJson, edited: editedText, logicJson: parsedJson });
+        } catch (e) {
+          // If parsing fails, return as text
+          return res.json({ original: textToEdit, edited: editedText });
+        }
+      }
+
+      res.json({ original: textToEdit, edited: editedText });
     } catch (error: any) {
       console.error("Error editing template with AI:", error);
       res.status(500).json({ message: `Failed to edit template: ${error.message}` });
