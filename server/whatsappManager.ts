@@ -84,7 +84,6 @@ async function saveMessageToDb(
       direction,
       content,
       isFromBot,
-      timestamp: new Date(),
     });
     console.log(`[DB Debug] Message saved successfully`);
 
