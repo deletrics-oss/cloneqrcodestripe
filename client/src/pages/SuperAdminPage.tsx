@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
     Users, Search, Crown, Activity, Wifi,
-    CheckCircle2, XCircle, Clock, Trash2, BarChart3
+    CheckCircle2, XCircle, Clock, Trash2, BarChart3, Key
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,15 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -53,6 +62,9 @@ interface GlobalStats {
 export default function SuperAdminPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [planFilter, setPlanFilter] = useState("all");
+    const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+    const [selectedUserForReset, setSelectedUserForReset] = useState<{ id: string, username: string } | null>(null);
+    const [newPassword, setNewPassword] = useState("");
     const { toast } = useToast();
 
     const { data: users, isLoading: loadingUsers } = useQuery<SuperAdminUser[]>({
@@ -96,6 +108,25 @@ export default function SuperAdminPage() {
             toast({
                 title: "Erro",
                 description: "Não foi possível remover o usuário",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const resetPasswordMutation = useMutation({
+        mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+            return await apiRequest("POST", `/api/admin/users/${userId}/reset-password`, { password });
+        },
+        onSuccess: () => {
+            toast({ title: "Senha atualizada com sucesso!" });
+            setIsResetDialogOpen(false);
+            setNewPassword("");
+            setSelectedUserForReset(null);
+        },
+        onError: () => {
+            toast({
+                title: "Erro",
+                description: "Não foi possível atualizar a senha",
                 variant: "destructive",
             });
         },
@@ -334,6 +365,17 @@ export default function SuperAdminPage() {
                                                             variant="ghost"
                                                             size="sm"
                                                             onClick={() => {
+                                                                setSelectedUserForReset({ id: user.id, username: user.username });
+                                                                setIsResetDialogOpen(true);
+                                                            }}
+                                                            title="Resetar Senha"
+                                                        >
+                                                            <Key className="w-4 h-4 text-blue-500" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
                                                                 if (confirm(`Tem certeza que deseja remover o usuário ${user.username}?`)) {
                                                                     deleteUserMutation.mutate(user.id);
                                                                 }
@@ -357,6 +399,45 @@ export default function SuperAdminPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Resetar Senha</DialogTitle>
+                        <DialogDescription>
+                            Defina uma nova senha para o usuário <b>{selectedUserForReset?.username}</b>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="new-password">Nova Senha</Label>
+                            <Input
+                                id="new-password"
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Digite a nova senha"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsResetDialogOpen(false)}>Cancelar</Button>
+                        <Button
+                            onClick={() => {
+                                if (selectedUserForReset && newPassword) {
+                                    resetPasswordMutation.mutate({
+                                        userId: selectedUserForReset.id,
+                                        password: newPassword
+                                    });
+                                }
+                            }}
+                            disabled={!newPassword || resetPasswordMutation.isPending}
+                        >
+                            {resetPasswordMutation.isPending ? "Salvando..." : "Salvar Senha"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

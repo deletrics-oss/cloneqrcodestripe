@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import bcrypt from "bcryptjs";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import Stripe from "stripe";
@@ -2644,6 +2645,33 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
     } catch (error) {
       console.error("Error generating broadcast message:", error);
       res.status(500).json({ message: "Failed to generate message" });
+    }
+  });
+
+  // Admin Reset Password
+  app.post('/api/admin/users/:id/reset-password', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const adminUser = await storage.getUser(adminId);
+
+      if (!adminUser || !adminUser.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const { id } = req.params;
+      const { password } = req.body;
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({ message: "Senha deve ter pelo menos 6 caracteres" });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      await storage.updateUser(id, { passwordHash });
+
+      res.json({ message: "Senha atualizada com sucesso" });
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ message: "Erro ao resetar senha" });
     }
   });
 
