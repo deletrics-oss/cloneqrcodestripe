@@ -62,18 +62,19 @@ export default function BroadcastPage() {
   });
 
   const { data: templates } = useQuery<any[]>({
-    queryKey: ['/api/broadcast-templates'],
+    queryKey: ['/api/templates'],
   });
 
   const createTemplateMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/broadcast-templates", {
+      return await apiRequest("POST", "/api/templates", {
         name: broadcastName || `Modelo ${new Date().toLocaleString()}`,
         content: message,
+        category: "broadcast", // Optional category
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/broadcast-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
       toast({ title: "Modelo salvo com sucesso!" });
     },
   });

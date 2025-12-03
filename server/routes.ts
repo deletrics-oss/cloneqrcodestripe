@@ -146,10 +146,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const ai = getAI();
       if (!ai) {
-        return res.status(500).json({ message: "AI service not configured" });
+        console.error("[AI Error] Gemini API Key is missing or invalid.");
+        return res.status(500).json({ message: "AI service not configured - Check server logs for API Key issues" });
       }
 
-      const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = `
         You are an AI assistant that edits text based on instructions.
         
@@ -164,14 +164,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Return ONLY the edited text, no explanations.
       `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const editedText = response.text();
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: prompt,
+      });
+
+      const editedText = response.text || "";
 
       res.json({ original: content, edited: editedText });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error editing template with AI:", error);
-      res.status(500).json({ message: "Failed to edit template" });
+      res.status(500).json({ message: `Failed to edit template: ${error.message}` });
+    }
+  });
+
+  // Logic Templates Route (Fix 404)
+  app.get('/api/logics/templates', isAuthenticated, async (req: any, res) => {
+    try {
+      // Return predefined templates
+      const templates = [
+        {
+          id: "template_welcome",
+          name: "Saudação Simples",
+          description: "Responde a saudações básicas como Oi, Olá, Bom dia.",
+          logicJson: {
+            rules: [
+              {
+                keywords: ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite"],
+                reply: "Olá! Como posso ajudar você hoje? 😊"
+              }
+            ],
+            default_reply: "",
+            pause_bot_after_reply: false
+          },
+          logicType: "json"
+        },
+        {
+          id: "template_menu",
+          name: "Menu de Opções",
+          description: "Apresenta um menu numerado para o cliente.",
+          logicJson: {
+            rules: [
+              {
+                keywords: ["menu", "opções", "ajuda"],
+                reply: "Aqui está nosso menu:\n1. Ver Planos\n2. Falar com Suporte\n3. Sair\n\nDigite o número da opção desejada."
+              },
+              {
+                keywords: ["1", "planos"],
+                reply: "Temos planos a partir de R$ 29,90! Acesse nosso site para ver mais."
+              },
+              {
+                keywords: ["2", "suporte"],
+                reply: "Um atendente irá falar com você em instantes. Aguarde..."
+              },
+              {
+                keywords: ["3", "sair"],
+                reply: "Obrigado pelo contato! Até logo. 👋"
+              }
+            ],
+            default_reply: "Desculpe, não entendi. Digite 'menu' para ver as opções.",
+            pause_bot_after_reply: false
+          },
+          logicType: "json"
+        }
+      ];
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching logic templates:", error);
+      res.status(500).json({ message: "Failed to fetch logic templates" });
     }
   });
 
