@@ -627,5 +627,16 @@
       "id": "Gro__zDwYgrizjvH2W6aS",
       "createdAt": "2025-12-01T17:34:57.136Z"
     }
+  ],
+  "messageTemplates": [
+    {
+      "name": "Test Template",
+      "content": "Hello World",
+      "category": "Test",
+      "userId": "user123",
+      "id": "pNzpb4LLva9vQXNC3ZCw_",
+      "createdAt": "2025-12-03T04:42:38.708Z",
+      "updatedAt": "2025-12-03T04:42:38.708Z"
+    }
   ]
 }
