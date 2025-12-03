@@ -610,6 +610,7 @@ export class MemStorage implements IStorage {
   private broadcasts = new Map<string, any>();
   private broadcastContacts = new Map<string, any>();
   private broadcastTemplates = new Map<string, BroadcastTemplate>();
+  private messageTemplates = new Map<string, MessageTemplate>();
   private webAssistants = new Map<string, WebAssistant>();
   constructor() {
     this.loadData();
@@ -645,6 +646,7 @@ export class MemStorage implements IStorage {
         if (data.broadcasts) this.broadcasts = new Map(data.broadcasts.map((b: any) => [b.id, revive(b)]));
         if (data.broadcastContacts) this.broadcastContacts = new Map(data.broadcastContacts.map((c: any) => [c.id, revive(c)]));
         if (data.broadcastTemplates) this.broadcastTemplates = new Map(data.broadcastTemplates.map((t: any) => [t.id, revive(t)]));
+        if (data.messageTemplates) this.messageTemplates = new Map(data.messageTemplates.map((t: any) => [t.id, revive(t)]));
         console.log(`[Storage] Data loaded from ${DB_FILE}`);
       }
     } catch (error) {
@@ -665,6 +667,7 @@ export class MemStorage implements IStorage {
         broadcastContacts: Array.from(this.broadcastContacts.values()),
         webAssistants: Array.from(this.webAssistants.values()),
         broadcastTemplates: Array.from(this.broadcastTemplates.values()),
+        messageTemplates: Array.from(this.messageTemplates.values()),
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
     } catch (error) {
@@ -1043,6 +1046,45 @@ export class MemStorage implements IStorage {
   }
   async deleteBroadcastTemplate(id: string): Promise<void> {
     this.broadcastTemplates.delete(id);
+    this.saveData();
+  }
+
+  // Message Templates
+  async createTemplate(template: InsertMessageTemplate): Promise<MessageTemplate> {
+    const id = nanoid();
+    const newTemplate: MessageTemplate = {
+      ...template,
+      id,
+      category: template.category || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.messageTemplates.set(id, newTemplate);
+    this.saveData();
+    return newTemplate;
+  }
+
+  async getTemplates(userId: string): Promise<MessageTemplate[]> {
+    return Array.from(this.messageTemplates.values())
+      .filter(t => t.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async updateTemplate(id: string, template: Partial<InsertMessageTemplate>): Promise<MessageTemplate> {
+    const existing = this.messageTemplates.get(id);
+    if (!existing) throw new Error('Template not found');
+    const updated: MessageTemplate = {
+      ...existing,
+      ...template,
+      updatedAt: new Date(),
+    };
+    this.messageTemplates.set(id, updated);
+    this.saveData();
+    return updated;
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    this.messageTemplates.delete(id);
     this.saveData();
   }
 }
