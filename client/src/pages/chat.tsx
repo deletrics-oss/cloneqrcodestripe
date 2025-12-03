@@ -52,7 +52,35 @@ export default function Chat() {
     }
   });
 
-  // ... (rest of the component)
+  const filteredConversations = conversations?.filter(c =>
+    c.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.contactPhone.includes(searchQuery)
+  ) || [];
+
+  const selectedConversation = conversations?.find(c => c.id === selectedConversationId);
+
+  const { data: messages, isLoading: messagesLoading } = useQuery<any[]>({
+    queryKey: [`/api/conversations/${selectedConversationId}/messages`],
+    enabled: !!selectedConversationId,
+    refetchInterval: 3000, // Poll for new messages
+  });
+
+  const sendMessageMutation = useMutation({
+    mutationFn: async (content: string) => {
+      if (!selectedConversationId) return;
+      await apiRequest("POST", `/api/conversations/${selectedConversationId}/messages`, { content });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/conversations/${selectedConversationId}/messages`] });
+      setMessageText("");
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao enviar mensagem",
+        variant: "destructive"
+      });
+    }
+  });
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
@@ -110,7 +138,6 @@ export default function Chat() {
                 >
                   <ContactAvatar
                     deviceId={conversation.deviceId}
-                    contactId={conversation.contactId}
                     name={conversation.contactName}
                     className="h-12 w-12"
                   />
@@ -157,7 +184,6 @@ export default function Chat() {
               <div className="flex items-center gap-3">
                 <ContactAvatar
                   deviceId={selectedConversation.deviceId}
-                  contactId={selectedConversation.contactId}
                   name={selectedConversation.contactName}
                 />
                 <div>
