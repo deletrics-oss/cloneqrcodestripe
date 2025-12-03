@@ -144,7 +144,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Content and instruction are required" });
       }
 
-      const ai = getAI();
+      const user = await storage.getUser(userId);
+      const ai = getAI(user?.geminiApiKey);
+
       if (!ai) {
         console.error("[AI Error] Gemini API Key is missing or invalid.");
         return res.status(500).json({ message: "AI service not configured - Check server logs for API Key issues" });
@@ -165,7 +167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-1.5-flash",
         contents: prompt,
       });
 
@@ -704,15 +706,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/conversations/:conversationId/messages', isAuthenticated, async (req: any, res) => {
     try {
+      const { conversationId } = req.params;
+      const { content } = req.body;
+      const userId = req.user.claims.sub;
+
+      // 1. Get conversation to find deviceId and contactPhone
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // 2. Verify device ownership and connection
+      const device = await storage.getDevice(conversation.deviceId);
+      if (!device || device.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized device access" });
+      }
+
+      if (device.connectionStatus !== 'connected') {
+        return res.status(400).json({ message: "Device not connected to WhatsApp" });
+      }
+
+      // 3. Save message to DB first (optimistic)
       const data = insertMessageSchema.parse({
-        ...req.body,
-        conversationId: req.params.conversationId,
+        content,
+        conversationId,
+        direction: 'outgoing',
+        isFromBot: false,
+        timestamp: new Date(),
       });
 
       const message = await storage.createMessage(data);
 
-      // TODO: Send via WhatsApp API
-      // TODO: Trigger bot response if configured
+      // 4. Send via WhatsApp
+      try {
+        await whatsappManager.sendWhatsAppMessage(
+          conversation.deviceId,
+          conversation.contactPhone,
+          content
+        );
+      } catch (sendError: any) {
+        console.error("Failed to send WhatsApp message:", sendError);
+        // We could update message status to 'failed' here if we had a status field
+        // For now, we return success because it's saved, but log the error
+        // Ideally, we should return 500, but the UI might already show it as sent
+        return res.status(500).json({ message: "Failed to send message to WhatsApp network", error: sendError.message });
+      }
 
       res.json(message);
     } catch (error) {

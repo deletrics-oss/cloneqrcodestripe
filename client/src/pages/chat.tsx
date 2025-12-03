@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Send, Search, MoreVertical, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +65,16 @@ export default function Chat() {
     enabled: !!selectedConversationId,
     refetchInterval: 3000, // Poll for new messages
   });
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -245,6 +255,7 @@ export default function Chat() {
                       </div>
                     </div>
                   ))}
+                  <div ref={messagesEndRef} />
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-center">

@@ -64,6 +64,8 @@ export interface IStorage {
   updateTemplate(id: string, template: Partial<InsertMessageTemplate>): Promise<MessageTemplate>;
   deleteTemplate(id: string): Promise<void>;
 
+  getAllUsers(): Promise<User[]>;
+  deleteUser(id: string): Promise<void>;
   getAllDevices(): Promise<WhatsappDevice[]>; // Added for system restoration
   // Conversations
   getConversations(deviceId: string): Promise<Conversation[]>;
@@ -158,6 +160,59 @@ export class DatabaseStorage implements IStorage {
       .values(userData)
       .returning();
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getStats(userId: string): Promise<{
+    activeChats: number;
+    messagesToday: number;
+    responseRate: number;
+  }> {
+    // Get all user's devices
+    const userDevices = await this.getDevices(userId);
+    const deviceIds = userDevices.map(d => d.id);
+
+    if (deviceIds.length === 0) {
+      return { activeChats: 0, messagesToday: 0, responseRate: 0 };
+    }
+
+    // Count active conversations
+    const allConversations = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.isActive, true));
+
+    const activeChats = allConversations.filter(c => deviceIds.includes(c.deviceId)).length;
+
+    // Count messages today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Note: This is not efficient for large datasets but works for now
+    // Ideally we should filter by date in SQL, but Drizzle date filtering can be tricky across DBs
+    const allMessages = await db.select().from(messages);
+
+    const messagesToday = allMessages.filter(m => {
+      const msgDate = new Date(m.timestamp || new Date());
+      msgDate.setHours(0, 0, 0, 0);
+      return msgDate.getTime() === today.getTime();
+    }).length;
+
+    // Calculate response rate (simplified mock)
+    const responseRate = activeChats > 0 ? Math.min(95, Math.round(Math.random() * 30 + 70)) : 0;
+
+    return {
+      activeChats,
+      messagesToday,
+      responseRate,
+    };
   }
   // WhatsApp Devices
   async getDevices(userId: string): Promise<WhatsappDevice[]> {
@@ -388,45 +443,7 @@ export class DatabaseStorage implements IStorage {
     return dbPresets;
   }
   // Stats
-  async getStats(userId: string): Promise<{
-    activeChats: number;
-    messagesToday: number;
-    responseRate: number;
-  }> {
-    // Get all user's devices
-    const userDevices = await this.getDevices(userId);
-    const deviceIds = userDevices.map(d => d.id);
-    if (deviceIds.length === 0) {
-      return { activeChats: 0, messagesToday: 0, responseRate: 0 };
-    }
-    // Count active conversations
-    const allConversations = await db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.isActive, true));
-    const activeChats = allConversations.filter((c: Conversation) => deviceIds.includes(c.deviceId)).length;
-    // Count messages today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const allMessages = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.timestamp, today));
-    const todayConversations = await db
-      .select()
-      .from(conversations);
-    const messagesToday = allMessages.filter((m: Message) => {
-      const conv = todayConversations.find((c: Conversation) => c.id === m.conversationId);
-      return conv && deviceIds.includes(conv.deviceId);
-    }).length;
-    // Calculate response rate (simplified)
-    const responseRate = activeChats > 0 ? Math.min(95, Math.round(Math.random() * 30 + 70)) : 0;
-    return {
-      activeChats,
-      messagesToday,
-      responseRate,
-    };
-  }
+
   // User update operations
   async updateUser(id: string, data: any): Promise<User> {
     const [updated] = await db
@@ -713,6 +730,15 @@ export class MemStorage implements IStorage {
     this.saveData();
     return userData;
   }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values()).sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    this.users.delete(id);
+    this.saveData();
+  }
   // WhatsApp Devices
   async getDevices(userId: string): Promise<WhatsappDevice[]> {
     return Array.from(this.devices.values())
@@ -795,7 +821,7 @@ export class MemStorage implements IStorage {
       ...message,
       id: nanoid(),
       isFromBot: message.isFromBot || false,
-      timestamp: message.timestamp || new Date(),
+      timestamp: new Date(),
       createdAt: new Date(),
     };
     this.messages.set(newMessage.id, newMessage);
