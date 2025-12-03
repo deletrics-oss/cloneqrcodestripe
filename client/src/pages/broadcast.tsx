@@ -37,6 +37,7 @@ export default function BroadcastPage() {
   const [selectAll, setSelectAll] = useState(false);
   const [delay, setDelay] = useState(20);
   const [searchTerm, setSearchTerm] = useState("");
+  const [includeGroups, setIncludeGroups] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -50,7 +51,12 @@ export default function BroadcastPage() {
   });
 
   const { data: contacts, isLoading: loadingContacts } = useQuery<Contact[]>({
-    queryKey: ['/api/whatsapp/contacts', selectedDevice],
+    queryKey: ['/api/whatsapp/contacts', selectedDevice, includeGroups],
+    queryFn: async () => {
+      if (!selectedDevice) return [];
+      const res = await apiRequest("GET", `/api/whatsapp/contacts/${selectedDevice}?includeGroups=${includeGroups}`);
+      return res.json();
+    },
     enabled: !!selectedDevice && isCreateDialogOpen,
   });
 
@@ -402,43 +408,7 @@ export default function BroadcastPage() {
                   </div>
 
                   <div className="space-y-2">
-                    const [includeGroups, setIncludeGroups] = useState(false);
 
-                    const {data: contacts, isLoading: loadingContacts } = useQuery<Contact[]>({
-                      queryKey: ['/api/whatsapp/contacts', selectedDevice, includeGroups],
-    queryFn: async () => {
-      if (!selectedDevice) return [];
-                    const res = await apiRequest("GET", `/api/whatsapp/contacts/${selectedDevice}?includeGroups=${includeGroups}`);
-                    return res.json();
-    },
-                    enabled: !!selectedDevice,
-  });
-
-  const filteredContacts = contacts?.filter(c =>
-                    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    c.number.includes(searchTerm)
-                    );
-
-  const handleSelectAll = (checked: boolean) => {
-                      setSelectAll(checked);
-                    if (checked && filteredContacts) {
-      const newIds = filteredContacts.map(c => c.number);
-      setSelectedContacts(prev => {
-        const unique = new Set([...prev, ...newIds]);
-                    return Array.from(unique);
-      });
-    } else {
-      if (searchTerm && filteredContacts) {
-        // Uncheck only visible
-        const visibleIds = filteredContacts.map(c => c.number);
-        setSelectedContacts(prev => prev.filter(id => !visibleIds.includes(id)));
-      } else {
-                      setSelectedContacts([]);
-      }
-    }
-  };
-
-                    // ... (rest of the file)
 
                     <div className="flex items-center justify-between">
                       <Label>Contatos ({selectedContacts.length} selecionados)</Label>
