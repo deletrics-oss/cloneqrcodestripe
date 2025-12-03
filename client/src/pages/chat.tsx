@@ -25,6 +25,7 @@ export default function Chat() {
 
   const { data: conversations, isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
+    refetchInterval: 3000, // Auto-refresh every 3 seconds to show new messages
   });
 
   const syncContactsMutation = useMutation({
