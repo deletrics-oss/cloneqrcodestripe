@@ -471,6 +471,7 @@ export default function MessageTemplates() {
                                             />
                                         )}
                                     </div>
+                                </div>
                             </TabsContent>
 
                             <TabsContent value="extract" className="flex-1 overflow-auto mt-4">
