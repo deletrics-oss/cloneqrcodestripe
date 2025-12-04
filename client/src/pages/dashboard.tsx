@@ -153,9 +153,8 @@ export default function Dashboard() {
                     data-testid={`device-item-${device.id}`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        device.connectionStatus === 'connected' ? 'bg-status-online' : 'bg-status-offline'
-                      }`} />
+                      <div className={`w-2 h-2 rounded-full ${device.connectionStatus === 'connected' ? 'bg-status-online' : 'bg-status-offline'
+                        }`} />
                       <div>
                         <p className="text-sm font-medium">{device.name}</p>
                         <p className="text-xs text-muted-foreground">{device.phoneNumber || 'Sem número'}</p>

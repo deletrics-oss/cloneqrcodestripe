@@ -220,6 +220,124 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
     }
   });
 
+  // AI Extract Menu from Image/URL
+  app.post('/api/ai/extract-menu', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sourceType, sourceContent, instruction } = req.body;
+
+      if (!sourceType || !sourceContent) {
+        return res.status(400).json({ message: "sourceType and sourceContent are required" });
+      }
+
+      const user = await storage.getUser(userId);
+      const ai = getAI(user?.geminiApiKey);
+
+      if (!ai) {
+        console.error("[AI Error] Gemini API Key is missing or invalid.");
+        return res.status(500).json({ message: "AI service not configured - Check server logs for API Key issues" });
+      }
+
+      let extractedText = "";
+
+      // Process based on source type
+      if (sourceType === 'image') {
+        // Image is base64 data URL or regular URL
+        try {
+          const prompt = `Extract all text from this image and format it as a clean, organized menu/list. ${instruction || 'Format with emojis and prices if visible.'}`;
+
+          // Check if it's a base64 image
+          if (sourceContent.startsWith('data:image')) {
+            // Remove data URL prefix and get base64
+            const base64Data = sourceContent.split(',')[1];
+            const mimeType = sourceContent.split(':')[1].split(';')[0];
+
+            const response = await ai.models.generateContent({
+              model: "gemini-2.0-flash-exp",
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  {
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: base64Data
+                    }
+                  }
+                ]
+              }]
+            });
+
+            extractedText = response.text || "";
+          } else {
+            // Regular image URL
+            const response = await ai.models.generateContent({
+              model: "gemini-2.0-flash-exp",
+              contents: [{
+                parts: [
+                  { text: prompt },
+                  {
+                    file_data: {
+                      file_uri: sourceContent,
+                      mime_type: "image/jpeg"
+                    }
+                  }
+                ]
+              }]
+            });
+
+            extractedText = response.text || "";
+          }
+        } catch (error: any) {
+          console.error("[AI Extract] Image processing error:", error);
+          return res.status(500).json({ message: `Failed to process image: ${error.message}` });
+        }
+      } else if (sourceType === 'url') {
+        // Extract from web page
+        let browser;
+        try {
+          const puppeteer = (await import('puppeteer')).default;
+          browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+          });
+          const page = await browser.newPage();
+          await page.goto(sourceContent, { waitUntil: 'networkidle2', timeout: 30000 });
+          const pageText = await page.evaluate(() => document.body.innerText);
+          await browser.close();
+
+          // Use AI to extract and format menu from scraped text
+          const prompt = `Extract menu items from this text and format them nicely with emojis and prices:\n\n${pageText.slice(0, 10000)}\n\n${instruction || 'Format as a WhatsApp message with emojis.'}`;
+
+          const response = await ai.models.generateContent({
+            model: "gemini-2.0-flash-exp",
+            contents: prompt,
+          });
+
+          extractedText = response.text || "";
+        } catch (e: any) {
+          console.error("[AI Extract] Scraping error:", e.message);
+          if (browser) await browser.close().catch(() => { });
+          return res.status(500).json({ message: `Failed to extract from URL: ${e.message}` });
+        }
+      } else if (sourceType === 'text') {
+        // Direct text paste - just format it
+        const prompt = `Format this menu/list nicely with emojis and proper structure:\n\n${sourceContent}\n\n${instruction || 'Format as a WhatsApp message with emojis.'}`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.0-flash-exp",
+          contents: prompt,
+        });
+
+        extractedText = response.text || "";
+      }
+
+      res.json({ extracted: extractedText });
+    } catch (error: any) {
+      console.error("Error extracting menu:", error);
+      res.status(500).json({ message: `Failed to extract menu: ${error.message}` });
+    }
+  });
+
   // Logic Templates Route (Fix 404)
   app.get('/api/logics/templates', isAuthenticated, async (req: any, res) => {
     try {

@@ -110,6 +110,17 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+
+              {user?.isAdmin && (
+                <SidebarMenuItem key="Super Admin">
+                  <SidebarMenuButton asChild isActive={location === "/super-admin"} data-testid="nav-super-admin">
+                    <Link href="/super-admin">
+                      <Crown className="w-5 h-5 text-yellow-500" />
+                      <span>Super Admin</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
