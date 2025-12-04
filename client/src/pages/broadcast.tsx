@@ -269,7 +269,19 @@ export default function BroadcastPage() {
                   <Label className="text-xs text-muted-foreground">Carregar Modelo (Template)</Label>
                   <Select onValueChange={(val) => {
                     const t = templates?.find((t: any) => t.id === val);
-                    if (t) setMessage(t.content);
+                    if (t) {
+                      // Extract media from content if present
+                      const mediaMatch = t.content.match(/\[MEDIA:(IMAGE|VIDEO):(.*?)\]/);
+                      if (mediaMatch) {
+                        setMediaType(mediaMatch[1].toLowerCase() as "image" | "video");
+                        setMediaUrl(mediaMatch[2]);
+                        setMessage(t.content.replace(mediaMatch[0], '').trim());
+                      } else {
+                        setMediaType("none");
+                        setMediaUrl("");
+                        setMessage(t.content);
+                      }
+                    }
                   }}>
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue placeholder="Selecione um modelo..." />

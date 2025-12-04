@@ -227,8 +227,54 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
         return;
       }
 
-      console.log(`[WhatsApp] Processing message from ${userNumber}: "${message.body}"`);
-      await saveMessageToDb(deviceId, userNumber, message.body, 'incoming');
+      let messageBody = message.body;
+
+      // Check for media (Audio/Image)
+      if (message.hasMedia) {
+        try {
+          console.log(`[WhatsApp] Downloading media from ${userNumber}...`);
+          const media = await message.downloadMedia();
+
+          if (media) {
+            const ai = getAI();
+            if (ai) {
+              console.log(`[WhatsApp] Processing media with Gemini (${media.mimetype})...`);
+              const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+              let prompt = "Descreva esta imagem em detalhes.";
+              if (media.mimetype.startsWith('audio')) {
+                prompt = "Transcreva este áudio fielmente. Retorne apenas a transcrição.";
+              } else if (media.mimetype.startsWith('image')) {
+                prompt = "Descreva esta imagem em detalhes. Se tiver texto, transcreva-o também.";
+              }
+
+              const result = await model.generateContent([
+                prompt,
+                {
+                  inlineData: {
+                    mimeType: media.mimetype,
+                    data: media.data
+                  }
+                }
+              ]);
+
+              const text = result.response.text();
+              console.log(`[WhatsApp] AI Media Analysis: ${text}`);
+
+              // Append AI analysis to message body so logic can use it
+              messageBody = text;
+
+              // Notify user that media is being processed (optional, maybe too spammy)
+              // await client.sendMessage(userNumber, "_🔊 Processando sua mídia..._");
+            }
+          }
+        } catch (mediaErr) {
+          console.error(`[WhatsApp] Error processing media:`, mediaErr);
+        }
+      }
+
+      console.log(`[WhatsApp] Processing message from ${userNumber}: "${messageBody}"`);
+      await saveMessageToDb(deviceId, userNumber, messageBody, 'incoming');
 
       // Get device configuration
       const device = await storage.getDevice(deviceId);
