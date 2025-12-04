@@ -1,5 +1,6 @@
 import pkg from "whatsapp-web.js";
 const { Client, LocalAuth, MessageMedia } = pkg;
+export { MessageMedia };
 import qrcode from "qrcode";
 import { storage } from "./storage";
 import { executeLogic, type LogicJson } from "./logicExecutor";
@@ -605,4 +606,9 @@ export async function restoreWhatsAppSessions(): Promise<void> {
   }
 
   console.log('[WhatsApp] Session restoration complete.');
+}
+
+export function getClient(deviceId: string) {
+  const session = sessions.get(deviceId);
+  return session?.status === 'READY' ? session.client : null;
 }

@@ -3,16 +3,16 @@ import { cn } from "@/lib/utils";
 
 interface ContactAvatarProps {
     deviceId?: string;
-    contactId?: string;
+    contactId?: string; // Pode ser o número de telefone ou ID serializado
     name?: string;
     className?: string;
 }
 
 export function ContactAvatar({ deviceId, contactId, name, className }: ContactAvatarProps) {
-    // Logic to construct image URL if backend supports it
-    // For now, we'll assume a standard path or just use initials
+    // Constrói a URL para buscar a foto no backend
+    // O backend precisará implementar essa rota
     const imageUrl = deviceId && contactId
-        ? `/api/whatsapp/contacts/${deviceId}/${contactId}/pic`
+        ? `/api/whatsapp/contacts/${deviceId}/${encodeURIComponent(contactId)}/pic`
         : undefined;
 
     const initials = name
@@ -22,7 +22,9 @@ export function ContactAvatar({ deviceId, contactId, name, className }: ContactA
     return (
         <Avatar className={cn("h-10 w-10", className)}>
             <AvatarImage src={imageUrl} alt={name || "Contact"} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                {initials}
+            </AvatarFallback>
         </Avatar>
     );
 }

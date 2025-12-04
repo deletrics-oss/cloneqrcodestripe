@@ -15,6 +15,9 @@ import * as fs from "fs";
 import * as path from "path";
 import puppeteer from "puppeteer";
 import { LOGIC_TEMPLATES } from "./templates";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize Stripe (only if key is provided)
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -2925,6 +2928,73 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
     (req.user as any).isAdmin = true;
 
     res.json({ message: "Usuário promovido a admin com sucesso! Recarregue a página." });
+  });
+
+
+  // Rota para obter foto de perfil do WhatsApp
+  app.get("/api/whatsapp/contacts/:deviceId/:contactId/pic", async (req, res) => {
+    const { deviceId, contactId } = req.params;
+
+    try {
+      const client = whatsappManager.getClient(deviceId);
+      if (!client) {
+        return res.status(404).json({ message: "Device not connected" });
+      }
+
+      let targetId = contactId;
+      if (!targetId.includes('@')) {
+        targetId = `${targetId}@c.us`;
+      }
+
+      const picUrl = await client.getProfilePicUrl(targetId);
+
+      if (picUrl) {
+        res.redirect(picUrl);
+      } else {
+        res.status(404).send("No profile pic");
+      }
+    } catch (error) {
+      console.error("Error fetching profile pic:", error);
+      res.status(500).send("Error fetching profile pic");
+    }
+  });
+
+
+  // Rota para envio de mídia (Áudio/Imagem)
+  app.post('/api/conversations/:conversationId/messages/media', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const { conversationId } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) return res.status(404).json({ message: "Conversation not found" });
+
+      const client = whatsappManager.getClient(conversation.deviceId);
+      if (!client) return res.status(503).json({ message: "WhatsApp not connected" });
+
+      // Create MessageMedia instance
+      const media = new whatsappManager.MessageMedia(file.mimetype, file.buffer.toString('base64'), file.originalname);
+
+      // Send to WhatsApp
+      await client.sendMessage(conversation.contactPhone, media);
+
+      // Save to DB
+      await storage.createMessage({
+        conversationId,
+        direction: 'outgoing',
+        content: `[Áudio Enviado]`,
+        isFromBot: false
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error sending media:", error);
+      res.status(500).json({ message: "Failed to send media" });
+    }
   });
 
   return httpServer;

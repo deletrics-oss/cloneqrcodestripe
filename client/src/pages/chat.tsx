@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Send, Search, MoreVertical, RefreshCw } from "lucide-react";
+import { Send, Search, MoreVertical, RefreshCw, Mic, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,71 @@ export default function Chat() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
+
+  // ... queries ...
+
+  const sendAudioMutation = useMutation({
+    mutationFn: async (audioBlob: Blob) => {
+      if (!selectedConversationId) return;
+
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'audio.webm');
+      formData.append('type', 'audio');
+
+      // Usar fetch direto pois apiRequest é para JSON
+      const res = await fetch(`/api/conversations/${selectedConversationId}/messages/media`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error("Falha ao enviar áudio");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/conversations/${selectedConversationId}/messages`] });
+      toast({ title: "Áudio enviado!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao enviar áudio", variant: "destructive" });
+    }
+  });
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await sendAudioMutation.mutateAsync(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      toast({ title: "Erro ao acessar microfone. Verifique as permissões.", variant: "destructive" });
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const { data: devices } = useQuery<any[]>({
     queryKey: ['/api/devices'],
@@ -150,6 +214,7 @@ export default function Chat() {
                 >
                   <ContactAvatar
                     deviceId={conversation.deviceId}
+                    contactId={conversation.contactPhone}
                     name={conversation.contactName}
                     className="h-12 w-12"
                   />
@@ -196,6 +261,7 @@ export default function Chat() {
               <div className="flex items-center gap-3">
                 <ContactAvatar
                   deviceId={selectedConversation.deviceId}
+                  contactId={selectedConversation.contactPhone}
                   name={selectedConversation.contactName}
                 />
                 <div>
@@ -276,6 +342,15 @@ export default function Chat() {
                 }}
                 className="flex gap-2"
               >
+                <Button
+                  type="button"
+                  variant={isRecording ? "destructive" : "secondary"}
+                  size="icon"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={cn("shrink-0", isRecording && "animate-pulse")}
+                >
+                  {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </Button>
                 <Input
                   placeholder="Digite sua mensagem..."
                   value={messageText}
