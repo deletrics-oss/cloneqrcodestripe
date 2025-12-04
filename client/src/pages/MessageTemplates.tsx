@@ -437,7 +437,7 @@ export default function MessageTemplates() {
                         <Tabs defaultValue="editor" className="h-full flex flex-col">
                             <TabsList className="grid w-full grid-cols-2">
                                 <TabsTrigger value="editor">✏️ Editor</TabsTrigger>
-                                <TabsTrigger value="extract">🍕 Extrair Cardápio</TabsTrigger>
+                                <TabsTrigger value="extract">🍕 Extrair Conteúdo</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="editor" className="flex-1 overflow-hidden mt-4">
@@ -471,7 +471,6 @@ export default function MessageTemplates() {
                                             />
                                         )}
                                     </div>
-                                </div>
                             </TabsContent>
 
                             <TabsContent value="extract" className="flex-1 overflow-auto mt-4">
@@ -594,7 +593,7 @@ export default function MessageTemplates() {
                                 </div>
                             </TabsContent>
                         </Tabs>
-                    </div>
+                    </div >
 
                     <div className="space-y-4 pt-4 border-t">
                         {/* Media Upload Section */}
@@ -705,9 +704,9 @@ export default function MessageTemplates() {
                             </Button>
                         </DialogFooter>
                     </div>
-                </DialogContent>
-            </Dialog>
-        </div>
+                </DialogContent >
+            </Dialog >
+        </div >
     );
 }
 
