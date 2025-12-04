@@ -81,6 +81,7 @@ export const whatsappDevices = pgTable("whatsapp_devices", {
   lastConnectedAt: timestamp("last_connected_at"),
   activeLogicId: varchar("active_logic_id"),
   isPaused: boolean("is_paused").notNull().default(false),
+  shouldTranscribe: boolean("should_transcribe").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -123,6 +124,8 @@ export const messages = pgTable("messages", {
   direction: messageDirectionEnum("direction").notNull(),
   content: text("content").notNull(),
   isFromBot: boolean("is_from_bot").notNull().default(false),
+  mediaUrl: text("media_url"),
+  mediaType: varchar("media_type"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ContactAvatar } from "@/components/ContactAvatar";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { Conversation } from "@shared/schema";
 
 export default function Chat() {
@@ -158,6 +160,20 @@ export default function Chat() {
     }
   });
 
+  const toggleTranscriptionMutation = useMutation({
+    mutationFn: async (shouldTranscribe: boolean) => {
+      if (!selectedConversation?.deviceId) return;
+      await apiRequest("PATCH", `/api/devices/${selectedConversation.deviceId}/settings`, { shouldTranscribe });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      toast({ title: "Configuração atualizada!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar configuração", variant: "destructive" });
+    }
+  });
+
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Conversations List */}
@@ -273,6 +289,16 @@ export default function Chat() {
                   </p>
                 </div>
               </div>
+              <div className="flex items-center gap-2 mr-2">
+                <Switch
+                  id="auto-transcribe"
+                  checked={devices?.find(d => d.id === selectedConversation.deviceId)?.shouldTranscribe ?? true}
+                  onCheckedChange={(checked) => toggleTranscriptionMutation.mutate(checked)}
+                />
+                <Label htmlFor="auto-transcribe" className="text-xs text-muted-foreground cursor-pointer">
+                  Auto Transcrever
+                </Label>
+              </div>
               <Button variant="ghost" size="icon">
                 <MoreVertical className="w-5 h-5" />
               </Button>
@@ -305,6 +331,20 @@ export default function Chat() {
                             : "bg-muted"
                         )}
                       >
+                        {message.mediaUrl && message.mediaType?.startsWith('image/') && (
+                          <img
+                            src={message.mediaUrl}
+                            alt="Mídia"
+                            className="rounded-lg mb-2 max-w-full h-auto"
+                            style={{ maxHeight: '300px' }}
+                          />
+                        )}
+                        {message.mediaUrl && message.mediaType?.startsWith('audio/') && (
+                          <audio controls className="w-full mb-2">
+                            <source src={message.mediaUrl} type={message.mediaType} />
+                            Seu navegador não suporta áudio.
+                          </audio>
+                        )}
                         <p className="text-sm">{message.content}</p>
                         <div className="flex items-center justify-between gap-2 mt-1">
                           <span className="text-xs opacity-70">

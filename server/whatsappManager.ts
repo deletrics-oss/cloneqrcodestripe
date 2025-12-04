@@ -58,7 +58,9 @@ async function saveMessageToDb(
   contactNumber: string,
   content: string,
   direction: 'incoming' | 'outgoing',
-  isFromBot: boolean = false
+  isFromBot: boolean = false,
+  mediaUrl?: string,
+  mediaType?: string
 ) {
   console.log(`[DB Debug] Saving message for device ${deviceId}, contact ${contactNumber}`);
   try {
@@ -86,6 +88,8 @@ async function saveMessageToDb(
       direction,
       content,
       isFromBot,
+      mediaUrl,
+      mediaType
     });
     console.log(`[DB Debug] Message saved successfully`);
 
@@ -235,6 +239,9 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
 
       let messageBody = message.body;
 
+      let mediaUrl: string | undefined;
+      let mediaType: string | undefined;
+
       // Check for media (Audio/Image)
       if (message.hasMedia) {
         try {
@@ -242,48 +249,69 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
           const media = await message.downloadMedia();
 
           if (media) {
-            const ai = getAI();
-            if (ai) {
-              console.log(`[WhatsApp] Processing media with Gemini (${media.mimetype})...`);
-              await logSystemEvent('ai', 'info', 'Analisando mídia com IA...', { mimetype: media.mimetype }, undefined, deviceId);
-
-              let prompt = "Descreva esta imagem em detalhes.";
-              if (media.mimetype.startsWith('audio')) {
-                prompt = "Transcreva este áudio fielmente. Retorne apenas a transcrição.";
-              } else if (media.mimetype.startsWith('image')) {
-                prompt = "Descreva esta imagem em detalhes. Se tiver texto, transcreva-o também.";
-              }
-
-              const result = await ai.models.generateContent({
-                model: "gemini-2.0-flash-exp",
-                contents: [
-                  {
-                    role: "user",
-                    parts: [
-                      { text: prompt },
-                      {
-                        inlineData: {
-                          mimeType: media.mimetype,
-                          data: media.data
-                        }
-                      }
-                    ]
-                  }
-                ]
-              });
-
-              const text = result.text || "";
-              console.log(`[WhatsApp] AI Media Analysis: ${text}`);
-
-              // Append AI analysis to message body so logic can use it
-              messageBody = text || `[Mídia: ${media.mimetype}]`;
-
+            // 1. Save media to disk
+            const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+            if (!fs.existsSync(UPLOADS_DIR)) {
+              fs.mkdirSync(UPLOADS_DIR, { recursive: true });
             }
+
+            const filename = `${message.id.id}.${media.mimetype.split('/')[1].split(';')[0]}`;
+            const filepath = path.join(UPLOADS_DIR, filename);
+            fs.writeFileSync(filepath, media.data, 'base64');
+            mediaUrl = `/uploads/${filename}`;
+            mediaType = media.mimetype;
+
+            // 2. Check device settings for transcription
+            const device = await storage.getDevice(deviceId);
+            const shouldTranscribe = device?.shouldTranscribe ?? true;
+            let aiText = "";
+
+            if (shouldTranscribe) {
+              const ai = getAI();
+              if (ai) {
+                console.log(`[WhatsApp] Processing media with Gemini (${media.mimetype})...`);
+                await logSystemEvent('ai', 'info', 'Analisando mídia com IA...', { mimetype: media.mimetype }, undefined, deviceId);
+
+                let prompt = "Descreva esta imagem em detalhes.";
+                if (media.mimetype.startsWith('audio')) {
+                  prompt = "Transcreva este áudio fielmente. Retorne apenas a transcrição.";
+                } else if (media.mimetype.startsWith('image')) {
+                  prompt = "Descreva esta imagem em detalhes. Se tiver texto, transcreva-o também.";
+                }
+
+                const result = await ai.models.generateContent({
+                  model: "gemini-2.0-flash-exp",
+                  contents: [
+                    {
+                      role: "user",
+                      parts: [
+                        { text: prompt },
+                        {
+                          inlineData: {
+                            mimeType: media.mimetype,
+                            data: media.data
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                });
+
+                aiText = result.text || "";
+                console.log(`[WhatsApp] AI Media Analysis: ${aiText}`);
+              }
+            } else {
+              console.log(`[WhatsApp] Skipping AI transcription for device ${deviceId}`);
+            }
+
+            // Append AI analysis to message body so logic can use it
+            messageBody = aiText || `[Mídia: ${media.mimetype}]`;
+
+
           }
         } catch (mediaErr) {
           console.error(`[WhatsApp] Error processing media:`, mediaErr);
           await logSystemEvent('ai', 'error', 'Falha ao processar mídia com IA', { error: String(mediaErr) }, undefined, deviceId);
-          // Fallback if AI fails
           if (!messageBody) {
             messageBody = `[Mídia recebida: ${message.type}]`;
           }
@@ -291,7 +319,12 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
       }
 
       console.log(`[WhatsApp] Processing message from ${userNumber}: "${messageBody}"`);
-      await saveMessageToDb(deviceId, userNumber, messageBody, 'incoming');
+      await saveMessageToDb(deviceId, userNumber, messageBody, 'incoming', false, mediaUrl, mediaType);
+
+
+
+
+
 
       // Get device configuration
       const device = await storage.getDevice(deviceId);

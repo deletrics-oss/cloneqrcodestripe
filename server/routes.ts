@@ -82,6 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
 
+  // Serve uploads
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
   // ============ MESSAGE TEMPLATES ROUTES ============
 
   // List templates
@@ -2994,6 +2997,20 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
     } catch (error) {
       console.error("Error sending media:", error);
       res.status(500).json({ message: "Failed to send media" });
+    }
+  });
+
+  // Update device settings
+  app.patch('/api/devices/:deviceId/settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const { deviceId } = req.params;
+      const { shouldTranscribe } = req.body;
+
+      await storage.updateDevice(deviceId, { shouldTranscribe });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating device settings:", error);
+      res.status(500).json({ message: "Failed to update settings" });
     }
   });
 
