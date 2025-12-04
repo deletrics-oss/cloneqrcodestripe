@@ -220,7 +220,7 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
     }
   });
 
-  // AI Extract Menu from Image/URL
+  // AI Extract Menu from Image/URL/PDF
   app.post('/api/ai/extract-menu', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -239,18 +239,49 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
       }
 
       let extractedText = "";
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
       // Process based on source type
       if (sourceType === 'image') {
-        // Image is base64 data URL or regular URL
         try {
-          const prompt = `Extract all text from this image and format it as a clean, organized menu/list. ${instruction || 'Format with emojis and prices if visible.'}`;
+          const prompt = `Extract ALL visible text from this image/document and format it as a clean, organized menu/list. ${instruction || 'Format with relevant emojis and prices as R$ XX,XX if visible.'}`;
 
-          // Check if it's a base64 image
-          if (sourceContent.startsWith('data:image')) {
-            // Remove data URL prefix and get base64
-            const base64Data = sourceContent.split(',')[1];
-            const mimeType = sourceContent.split(':')[1].split(';')[0];
+          // Check if it's a base64 image/PDF
+          if (sourceContent.startsWith('data:')) {
+            const parts = sourceContent.split(',');
+            if (parts.length < 2 || !parts[1]) {
+              return res.status(400).json({ message: "Invalid file format - missing data" });
+            }
+
+            const base64Data = parts[1];
+            if (!base64Data || base64Data.length < 100) {
+              return res.status(400).json({ message: "Invalid file - data too short or empty" });
+            }
+
+            const estimatedSize = (base64Data.length * 3) / 4;
+            if (estimatedSize > MAX_FILE_SIZE) {
+              return res.status(413).json({ message: `File too large. Maximum: 10MB (current: ${(estimatedSize / 1024 / 1024).toFixed(1)}MB)` });
+            }
+
+            const mimeMatch = sourceContent.match(/^data:([^;]+);/);
+            if (!mimeMatch) {
+              return res.status(400).json({ message: "Invalid file format - cannot detect type" });
+            }
+            const mimeType = mimeMatch[1];
+
+            const supportedTypes = [
+              'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+              'image/bmp', 'image/heic', 'image/heif', 'image/tiff', 'image/svg+xml',
+              'application/pdf'
+            ];
+
+            if (!supportedTypes.includes(mimeType)) {
+              return res.status(400).json({
+                message: `Unsupported format: ${mimeType}. Supported: JPG, PNG, GIF, WebP, HEIC, PDF`
+              });
+            }
+
+            console.log(`[AI Extract] Processing ${mimeType}, size: ${(estimatedSize / 1024).toFixed(1)}KB`);
 
             const response = await ai.models.generateContent({
               model: "gemini-2.0-flash-exp",
@@ -268,33 +299,67 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
             });
 
             extractedText = response.text || "";
+
+            if (!extractedText || extractedText.trim().length < 10) {
+              return res.status(400).json({ message: "No text detected in this file. Please ensure the image/PDF contains visible text." });
+            }
           } else {
             // Regular image URL
-            const response = await ai.models.generateContent({
-              model: "gemini-2.0-flash-exp",
-              contents: [{
-                parts: [
-                  { text: prompt },
-                  {
-                    file_data: {
-                      file_uri: sourceContent,
-                      mime_type: "image/jpeg"
-                    }
-                  }
-                ]
-              }]
-            });
+            try {
+              console.log(`[AI Extract] Fetching image from URL: ${sourceContent.substring(0, 100)}...`);
+              const imageResponse = await fetch(sourceContent);
+              if (!imageResponse.ok) {
+                return res.status(400).json({ message: `Failed to fetch image: ${imageResponse.statusText}` });
+              }
 
-            extractedText = response.text || "";
+              const contentType = imageResponse.headers.get('content-type') || '';
+              if (!contentType.startsWith('image/')) {
+                return res.status(400).json({ message: `URL does not point to an image (type: ${contentType})` });
+              }
+
+              const arrayBuffer = await imageResponse.arrayBuffer();
+              if (arrayBuffer.byteLength > MAX_FILE_SIZE) {
+                return res.status(413).json({
+                  message: `Image too large. Maximum: 10MB (current: ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)}MB)`
+                });
+              }
+
+              const base64Data = Buffer.from(arrayBuffer).toString('base64');
+              console.log(`[AI Extract] Fetched ${contentType}, size: ${(arrayBuffer.byteLength / 1024).toFixed(1)}KB`);
+
+              const response = await ai.models.generateContent({
+                model: "gemini-2.0-flash-exp",
+                contents: [{
+                  parts: [
+                    { text: prompt },
+                    {
+                      inline_data: {
+                        mime_type: contentType,
+                        data: base64Data
+                      }
+                    }
+                  ]
+                }]
+              });
+
+              extractedText = response.text || "";
+
+              if (!extractedText || extractedText.trim().length < 10) {
+                return res.status(400).json({ message: "No text detected in this image." });
+              }
+            } catch (fetchError: any) {
+              console.error("[AI Extract] Failed to fetch image from URL:", fetchError);
+              return res.status(500).json({ message: `Failed to load image from URL: ${fetchError.message}` });
+            }
           }
         } catch (error: any) {
-          console.error("[AI Extract] Image processing error:", error);
-          return res.status(500).json({ message: `Failed to process image: ${error.message}` });
+          console.error("[AI Extract] Processing error:", error);
+          return res.status(500).json({ message: `Failed to process file: ${error.message}` });
         }
       } else if (sourceType === 'url') {
-        // Extract from web page
         let browser;
         try {
+          console.log(`[AI Extract] Scraping URL: ${sourceContent.substring(0, 100)}...`);
           const puppeteer = (await import('puppeteer')).default;
           browser = await puppeteer.launch({
             headless: true,
@@ -305,7 +370,10 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
           const pageText = await page.evaluate(() => document.body.innerText);
           await browser.close();
 
-          // Use AI to extract and format menu from scraped text
+          if (!pageText || pageText.trim().length < 50) {
+            return res.status(400).json({ message: "Very little text found on this page. Please check the URL." });
+          }
+
           const prompt = `Extract menu items from this text and format them nicely with emojis and prices:\n\n${pageText.slice(0, 10000)}\n\n${instruction || 'Format as a WhatsApp message with emojis.'}`;
 
           const response = await ai.models.generateContent({
@@ -320,7 +388,10 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
           return res.status(500).json({ message: `Failed to extract from URL: ${e.message}` });
         }
       } else if (sourceType === 'text') {
-        // Direct text paste - just format it
+        if (!sourceContent || sourceContent.trim().length < 10) {
+          return res.status(400).json({ message: "Text is too short or empty" });
+        }
+
         const prompt = `Format this menu/list nicely with emojis and proper structure:\n\n${sourceContent}\n\n${instruction || 'Format as a WhatsApp message with emojis.'}`;
 
         const response = await ai.models.generateContent({

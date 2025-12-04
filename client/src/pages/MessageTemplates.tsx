@@ -493,7 +493,7 @@ export default function MessageTemplates() {
                                                         type="file"
                                                         ref={extractFileInputRef}
                                                         className="hidden"
-                                                        accept="image/*"
+                                                        accept="image/*,.pdf,.heic,.heif"
                                                         onChange={handleExtractFileUpload}
                                                     />
                                                     <Button
