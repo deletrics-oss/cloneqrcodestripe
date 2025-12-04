@@ -113,8 +113,19 @@ export default function MessageTemplates() {
                 sourceContent = extractText;
             }
 
+            // Auto-detect if URL is an image
+            let finalSourceType = extractSource;
+            if (extractSource === "url" && extractUrl) {
+                const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif', '.tiff', '.svg'];
+                const urlLower = extractUrl.toLowerCase();
+                const isImageUrl = imageExtensions.some(ext => urlLower.includes(ext));
+                if (isImageUrl) {
+                    finalSourceType = "image";
+                }
+            }
+
             const res = await apiRequest("POST", "/api/ai/extract-menu", {
-                sourceType: extractSource,
+                sourceType: finalSourceType,
                 sourceContent,
                 instruction: extractInstruction || "Formate como mensagem de WhatsApp com emojis e preços organizados"
             });
