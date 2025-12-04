@@ -1,13 +1,30 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Activity, Zap, Wifi, WifiOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MessageSquare, Activity, Zap, Wifi, WifiOff, ShieldAlert } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { WhatsappDevice } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
+  const { toast } = useToast();
   const { data: devices, isLoading: devicesLoading } = useQuery<WhatsappDevice[]>({
     queryKey: ['/api/devices'],
+  });
+
+  const setupAdminMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/setup-admin", {});
+    },
+    onSuccess: () => {
+      toast({ title: "Sucesso!", description: "Você agora é Admin. Recarregue a página." });
+      setTimeout(() => window.location.reload(), 1000);
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Falha ao promover usuário.", variant: "destructive" });
+    }
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<{
@@ -23,9 +40,20 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 md:p-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="text-page-title">Dashboard de Gerenciamento</h1>
-        <p className="text-muted-foreground mt-1">Visão geral do sistema</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="text-page-title">Dashboard de Gerenciamento</h1>
+          <p className="text-muted-foreground mt-1">Visão geral do sistema</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setupAdminMutation.mutate()}
+          disabled={setupAdminMutation.isPending}
+        >
+          <ShieldAlert className="w-4 h-4 mr-2" />
+          {setupAdminMutation.isPending ? "Configurando..." : "Virar Admin (Setup)"}
+        </Button>
       </div>
 
       {/* Metrics Cards */}

@@ -2891,5 +2891,41 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
     }
   });
 
+  // Admin Toggle Admin Status
+  app.patch('/api/admin/users/:userId/toggle-admin', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const adminUser = await storage.getUser(adminId);
+
+      if (!adminUser || !adminUser.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      const { userId } = req.params;
+      const { isAdmin } = req.body;
+
+      await storage.updateUser(userId, { isAdmin });
+      res.json({ message: "Permissões atualizadas com sucesso" });
+    } catch (error) {
+      console.error("Error toggling admin status:", error);
+      res.status(500).json({ message: "Erro ao atualizar permissões" });
+    }
+  });
+
+  // Rota temporária para promover o usuário atual a admin
+  app.post("/api/setup-admin", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const userId = (req.user as any).id;
+    await storage.updateUser(userId, { isAdmin: true });
+
+    // Atualizar sessão
+    (req.user as any).isAdmin = true;
+
+    res.json({ message: "Usuário promovido a admin com sucesso! Recarregue a página." });
+  });
+
   return httpServer;
 }

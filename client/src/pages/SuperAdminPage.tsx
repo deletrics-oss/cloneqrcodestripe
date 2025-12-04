@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
     Users, Search, Crown, Activity, Wifi,
-    CheckCircle2, XCircle, Clock, Trash2, BarChart3, Key
+    CheckCircle2, XCircle, Clock, Trash2, BarChart3, Key, Shield
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -154,6 +154,19 @@ export default function SuperAdminPage() {
                 description: "Não foi possível atualizar a senha",
                 variant: "destructive",
             });
+        },
+    });
+
+    const toggleAdminMutation = useMutation({
+        mutationFn: async ({ userId, isAdmin }: { userId: string; isAdmin: boolean }) => {
+            return await apiRequest("PATCH", `/api/admin/users/${userId}/toggle-admin`, { isAdmin });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+            toast({ title: "Permissões atualizadas com sucesso!" });
+        },
+        onError: () => {
+            toast({ title: "Erro", description: "Falha ao atualizar permissões.", variant: "destructive" });
         },
     });
 
@@ -393,6 +406,18 @@ export default function SuperAdminPage() {
                                                                         <SelectItem value="full">Completo</SelectItem>
                                                                     </SelectContent>
                                                                 </Select>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Deseja ${user.isAdmin ? 'remover' : 'conceder'} permissão de admin para ${user.username}?`)) {
+                                                                            toggleAdminMutation.mutate({ userId: user.id, isAdmin: !user.isAdmin });
+                                                                        }
+                                                                    }}
+                                                                    title={user.isAdmin ? "Remover Admin" : "Tornar Admin"}
+                                                                >
+                                                                    <Shield className={`w-4 h-4 ${user.isAdmin ? 'text-yellow-500 fill-yellow-500' : 'text-gray-400'}`} />
+                                                                </Button>
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="sm"
