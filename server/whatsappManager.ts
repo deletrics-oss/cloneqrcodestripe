@@ -255,7 +255,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
               }
 
               const result = await ai.models.generateContent({
-                model: "gemini-1.5-flash",
+                model: "gemini-2.0-flash-exp",
                 contents: [
                   {
                     role: "user",
@@ -276,15 +276,17 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
               console.log(`[WhatsApp] AI Media Analysis: ${text}`);
 
               // Append AI analysis to message body so logic can use it
-              messageBody = text;
+              messageBody = text || `[Mídia: ${media.mimetype}]`;
 
-              // Notify user that media is being processed (optional, maybe too spammy)
-              // await client.sendMessage(userNumber, "_🔊 Processando sua mídia..._");
             }
           }
         } catch (mediaErr) {
           console.error(`[WhatsApp] Error processing media:`, mediaErr);
           await logSystemEvent('ai', 'error', 'Falha ao processar mídia com IA', { error: String(mediaErr) }, undefined, deviceId);
+          // Fallback if AI fails
+          if (!messageBody) {
+            messageBody = `[Mídia recebida: ${message.type}]`;
+          }
         }
       }
 
