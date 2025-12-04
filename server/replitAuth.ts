@@ -59,6 +59,7 @@ async function upsertUser(claims: any) {
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
+    geminiApiKey: null,
     stripeCustomerId: null,
     stripeSubscriptionId: null,
     currentPlan: existingUser?.currentPlan || 'free',

@@ -392,3 +392,41 @@ export const knowledgeBaseRelations = relations(knowledgeBase, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+// ============ SYSTEM LOGS ============
+
+export const logCategoryEnum = pgEnum('log_category', ['whatsapp', 'ai', 'bot', 'system']);
+export const logLevelEnum = pgEnum('log_level', ['info', 'warning', 'error']);
+
+export const systemLogs = pgTable("system_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'set null' }),
+  deviceId: varchar("device_id").references(() => whatsappDevices.id, { onDelete: 'set null' }),
+  category: logCategoryEnum("category").notNull(),
+  level: logLevelEnum("level").notNull().default('info'),
+  message: text("message").notNull(),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SystemLog = typeof systemLogs.$inferSelect;
+export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
+
+export type LogCategory = 'whatsapp' | 'ai' | 'bot' | 'system';
+export type LogLevel = 'info' | 'warning' | 'error';
+
+export const systemLogsRelations = relations(systemLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [systemLogs.userId],
+    references: [users.id],
+  }),
+  device: one(whatsappDevices, {
+    fields: [systemLogs.deviceId],
+    references: [whatsappDevices.id],
+  }),
+}));

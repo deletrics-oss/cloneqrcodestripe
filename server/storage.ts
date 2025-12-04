@@ -33,9 +33,12 @@ import {
   messageTemplates,
   type MessageTemplate,
   type InsertMessageTemplate,
+  systemLogs,
+  type SystemLog,
+  type InsertSystemLog,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import * as fs from "fs";
 import * as path from "path";
@@ -124,6 +127,11 @@ export interface IStorage {
   getBroadcastTemplates(userId: string): Promise<BroadcastTemplate[]>;
   createBroadcastTemplate(template: InsertBroadcastTemplate): Promise<BroadcastTemplate>;
   deleteBroadcastTemplate(id: string): Promise<void>;
+
+  // System Logs
+  createSystemLog(log: InsertSystemLog): Promise<SystemLog>;
+  getSystemLogs(filters?: { category?: string; level?: string; deviceId?: string; limit?: number }): Promise<SystemLog[]>;
+  deleteOldSystemLogs(daysToKeep: number): Promise<void>;
 }
 export class DatabaseStorage implements IStorage {
   // ... (previous methods)
@@ -145,6 +153,38 @@ export class DatabaseStorage implements IStorage {
   async deleteBroadcastTemplate(id: string): Promise<void> {
     await db.delete(broadcastTemplates).where(eq(broadcastTemplates.id, id));
   }
+
+  // System Logs
+  async createSystemLog(log: InsertSystemLog): Promise<SystemLog> {
+    const [newLog] = await db
+      .insert(systemLogs)
+      .values(log)
+      .returning();
+    return newLog;
+  }
+
+  async getSystemLogs(filters?: { category?: string; level?: string; deviceId?: string; limit?: number }): Promise<SystemLog[]> {
+    let query = db.select().from(systemLogs);
+    const conditions = [];
+
+    if (filters?.category) conditions.push(eq(systemLogs.category, filters.category as any));
+    if (filters?.level) conditions.push(eq(systemLogs.level, filters.level as any));
+    if (filters?.deviceId) conditions.push(eq(systemLogs.deviceId, filters.deviceId));
+
+    if (conditions.length > 0) {
+      // @ts-ignore
+      query = query.where(and(...conditions));
+    }
+
+    return await query.orderBy(desc(systemLogs.createdAt)).limit(filters?.limit || 100);
+  }
+
+  async deleteOldSystemLogs(daysToKeep: number): Promise<void> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysToKeep);
+    await db.delete(systemLogs).where(lt(systemLogs.createdAt, cutoff));
+  }
+
   // User operations
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -189,7 +229,7 @@ export class DatabaseStorage implements IStorage {
       .from(conversations)
       .where(eq(conversations.isActive, true));
 
-    const activeChats = allConversations.filter(c => deviceIds.includes(c.deviceId)).length;
+    const activeChats = allConversations.filter((c: any) => deviceIds.includes(c.deviceId)).length;
 
     // Count messages today
     const today = new Date();
@@ -199,7 +239,7 @@ export class DatabaseStorage implements IStorage {
     // Ideally we should filter by date in SQL, but Drizzle date filtering can be tricky across DBs
     const allMessages = await db.select().from(messages);
 
-    const messagesToday = allMessages.filter(m => {
+    const messagesToday = allMessages.filter((m: any) => {
       const msgDate = new Date(m.timestamp || new Date());
       msgDate.setHours(0, 0, 0, 0);
       return msgDate.getTime() === today.getTime();
@@ -629,6 +669,8 @@ export class MemStorage implements IStorage {
   private broadcastTemplates = new Map<string, BroadcastTemplate>();
   private messageTemplates = new Map<string, MessageTemplate>();
   private webAssistants = new Map<string, WebAssistant>();
+  private systemLogs = new Map<string, SystemLog>();
+
   constructor() {
     this.loadData();
     // Inicializar presets se n�o existirem
@@ -664,6 +706,7 @@ export class MemStorage implements IStorage {
         if (data.broadcastContacts) this.broadcastContacts = new Map(data.broadcastContacts.map((c: any) => [c.id, revive(c)]));
         if (data.broadcastTemplates) this.broadcastTemplates = new Map(data.broadcastTemplates.map((t: any) => [t.id, revive(t)]));
         if (data.messageTemplates) this.messageTemplates = new Map(data.messageTemplates.map((t: any) => [t.id, revive(t)]));
+        if (data.systemLogs) this.systemLogs = new Map(data.systemLogs.map((l: any) => [l.id, revive(l)]));
         console.log(`[Storage] Data loaded from ${DB_FILE}`);
       }
     } catch (error) {
@@ -685,6 +728,7 @@ export class MemStorage implements IStorage {
         webAssistants: Array.from(this.webAssistants.values()),
         broadcastTemplates: Array.from(this.broadcastTemplates.values()),
         messageTemplates: Array.from(this.messageTemplates.values()),
+        systemLogs: Array.from(this.systemLogs.values()),
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
     } catch (error) {
@@ -705,6 +749,7 @@ export class MemStorage implements IStorage {
       email: userData.email || null,
       firstName: userData.firstName || null,
       lastName: userData.lastName || null,
+      geminiApiKey: userData.geminiApiKey || null,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       currentPlan: userData.currentPlan || 'free',
@@ -1113,6 +1158,49 @@ export class MemStorage implements IStorage {
     this.messageTemplates.delete(id);
     this.saveData();
   }
+  // System Logs
+  async createSystemLog(log: InsertSystemLog): Promise<SystemLog> {
+    const id = nanoid();
+    const newLog: SystemLog = {
+      ...log,
+      id,
+      createdAt: new Date(),
+      userId: log.userId || null,
+      deviceId: log.deviceId || null,
+      details: log.details || null,
+      level: log.level || 'info'
+    };
+    this.systemLogs.set(id, newLog);
+    this.saveData();
+    return newLog;
+  }
+
+  async getSystemLogs(filters?: { category?: string; level?: string; deviceId?: string; limit?: number }): Promise<SystemLog[]> {
+    let logs = Array.from(this.systemLogs.values());
+
+    if (filters) {
+      if (filters.category) logs = logs.filter(l => l.category === filters.category);
+      if (filters.level) logs = logs.filter(l => l.level === filters.level);
+      if (filters.deviceId) logs = logs.filter(l => l.deviceId === filters.deviceId);
+    }
+
+    return logs
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
+      .slice(0, filters?.limit || 100);
+  }
+
+  async deleteOldSystemLogs(daysToKeep: number): Promise<void> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysToKeep);
+
+    for (const [id, log] of Array.from(this.systemLogs.entries())) {
+      if (log.createdAt && log.createdAt < cutoff) {
+        this.systemLogs.delete(id);
+      }
+    }
+    this.saveData();
+  }
 }
-// Exporta��o din�mica: usa DatabaseStorage se DATABASE_URL existir, sen�o usa MemStorage
+
+// Exportação dinâmica: usa DatabaseStorage se DATABASE_URL existir, senão usa MemStorage
 export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();

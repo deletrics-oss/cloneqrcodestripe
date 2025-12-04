@@ -68,6 +68,7 @@
     "openid-client": "^6.8.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "pg": "^8.13.0",
     "puppeteer": "^24.31.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
@@ -89,8 +90,7 @@
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
     "zod": "^3.24.2",
-    "zod-validation-error": "^3.4.0",
-    "pg": "^8.13.0"
+    "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
     "@replit/vite-plugin-cartographer": "^0.4.4",
@@ -105,6 +105,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-local": "^1.0.38",
     "@types/pg": "^8.11.10",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.13",

@@ -524,6 +524,33 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
   });
 
   // ============ ADMIN ROUTES ============
+
+  // Super Admin: System Logs
+  app.get('/api/admin/system-logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado: apenas administradores" });
+      }
+
+      const { category, level, deviceId, limit } = req.query;
+
+      const logs = await storage.getSystemLogs({
+        category: category as string,
+        level: level as string,
+        deviceId: deviceId as string,
+        limit: limit ? parseInt(limit as string) : 100
+      });
+
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching system logs:", error);
+      res.status(500).json({ message: "Failed to fetch system logs" });
+    }
+  });
+
   app.post('/api/admin/promote', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

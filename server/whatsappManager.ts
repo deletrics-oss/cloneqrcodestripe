@@ -6,6 +6,7 @@ import { executeLogic, type LogicJson } from "./logicExecutor";
 import * as fs from "fs";
 import * as path from "path";
 import { GoogleGenAI } from "@google/genai";
+import { logSystemEvent } from "./logManager";
 
 // Initialize Gemini AI lazily
 let aiInstance: GoogleGenAI | null = null;
@@ -94,6 +95,7 @@ async function saveMessageToDb(
 
 export async function createWhatsAppSession(deviceId: string): Promise<void> {
   console.log(`[WhatsApp] Creating session for device: ${deviceId}`);
+  await logSystemEvent('whatsapp', 'info', 'Iniciando processo de conexão...', null, undefined, deviceId);
 
   // If session already exists and is not disconnected, skip
   if (sessions.has(deviceId)) {
@@ -152,9 +154,10 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
   // QR Code event
   client.on('qr', (qr) => {
     console.log(`[WhatsApp] QR Code generated for device: ${deviceId} (Length: ${qr.length})`);
+    logSystemEvent('whatsapp', 'warning', 'QR Code gerado. Aguardando leitura...', { qrLength: qr.length }, undefined, deviceId);
     session.status = 'QR_PENDING';
 
-    qrcode.toDataURL(qr, async (err, url) => {
+    qrcode.toDataURL(qr, async (err: Error | null | undefined, url: string) => {
       if (!err && url) {
         session.qrCode = url;
         await storage.updateDevice(deviceId, { connectionStatus: 'qr_ready', qrCode: url });
@@ -165,6 +168,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
   // Ready event
   client.on('ready', async () => {
     console.log(`[WhatsApp] Client ready for device: ${deviceId}`);
+    await logSystemEvent('whatsapp', 'info', 'Conexão estabelecida com sucesso!', null, undefined, deviceId);
     session.status = 'READY';
     session.qrCode = null;
     await storage.updateDevice(deviceId, { connectionStatus: 'connected', qrCode: null, lastConnectedAt: new Date() });
@@ -179,6 +183,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
   client.on('disconnected', async (reason) => {
     if (session.status !== 'DESTROYING') {
       console.warn(`[WhatsApp] Client disconnected for device: ${deviceId}, reason:`, reason);
+      await logSystemEvent('whatsapp', 'error', `WhatsApp desconectado: ${reason}`, { reason }, undefined, deviceId);
       session.status = 'DISCONNECTED';
       await storage.updateDevice(deviceId, { connectionStatus: 'disconnected' });
 
@@ -216,7 +221,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
 
       // ANTI-LOOP: Ignore messages from other bots
       const otherBotJids: string[] = [];
-      for (const [sId, sess] of sessions.entries()) {
+      for (const [sId, sess] of Array.from(sessions.entries())) {
         if (sId !== deviceId && sess.status === 'READY' && sess.client.info) {
           otherBotJids.push(sess.client.info.wid._serialized);
         }
@@ -239,7 +244,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
             const ai = getAI();
             if (ai) {
               console.log(`[WhatsApp] Processing media with Gemini (${media.mimetype})...`);
-              const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+              await logSystemEvent('ai', 'info', 'Analisando mídia com IA...', { mimetype: media.mimetype }, undefined, deviceId);
 
               let prompt = "Descreva esta imagem em detalhes.";
               if (media.mimetype.startsWith('audio')) {
@@ -248,17 +253,25 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
                 prompt = "Descreva esta imagem em detalhes. Se tiver texto, transcreva-o também.";
               }
 
-              const result = await model.generateContent([
-                prompt,
-                {
-                  inlineData: {
-                    mimeType: media.mimetype,
-                    data: media.data
+              const result = await ai.models.generateContent({
+                model: "gemini-1.5-flash",
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      { text: prompt },
+                      {
+                        inlineData: {
+                          mimeType: media.mimetype,
+                          data: media.data
+                        }
+                      }
+                    ]
                   }
-                }
-              ]);
+                ]
+              });
 
-              const text = result.response.text();
+              const text = result.text || "";
               console.log(`[WhatsApp] AI Media Analysis: ${text}`);
 
               // Append AI analysis to message body so logic can use it
@@ -270,6 +283,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
           }
         } catch (mediaErr) {
           console.error(`[WhatsApp] Error processing media:`, mediaErr);
+          await logSystemEvent('ai', 'error', 'Falha ao processar mídia com IA', { error: String(mediaErr) }, undefined, deviceId);
         }
       }
 
@@ -314,6 +328,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
 
         if (logic && logic.isActive && logic.logicJson) {
           console.log(`[WhatsApp] Executing logic "${logic.name}" (${logic.id}) for device ${deviceId}`);
+          // await logSystemEvent('bot', 'info', `Executando lógica: ${logic.name}`, { logicId: logic.id }, undefined, deviceId); // Optional: too verbose?
 
           const result = executeLogic(message.body, logic.logicJson as LogicJson);
           console.log(`[WhatsApp] Logic result: reply="${result.reply.substring(0, 50)}...", shouldPause=${result.shouldPause}`);
@@ -353,6 +368,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
       }
     } catch (error) {
       console.error(`[WhatsApp] Error handling message for device ${deviceId}:`, error);
+      await logSystemEvent('bot', 'error', 'Erro ao processar mensagem', { error: String(error) }, undefined, deviceId);
     }
   });
 
@@ -362,6 +378,7 @@ export async function createWhatsAppSession(deviceId: string): Promise<void> {
     await client.initialize();
   } catch (err) {
     console.error(`[WhatsApp] Error initializing client for device ${deviceId}:`, err);
+    await logSystemEvent('whatsapp', 'error', 'Falha crítica ao inicializar cliente', { error: String(err) }, undefined, deviceId);
     session.status = 'DISCONNECTED';
 
     // Try to destroy failed session

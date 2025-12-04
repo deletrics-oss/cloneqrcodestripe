@@ -33,6 +33,8 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -59,12 +61,23 @@ interface GlobalStats {
     messagesLast24h: number;
 }
 
+interface SystemLog {
+    id: string;
+    category: string;
+    level: string;
+    message: string;
+    details: any;
+    createdAt: string;
+    deviceId?: string;
+}
+
 export default function SuperAdminPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [planFilter, setPlanFilter] = useState("all");
     const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
     const [selectedUserForReset, setSelectedUserForReset] = useState<{ id: string, username: string } | null>(null);
     const [newPassword, setNewPassword] = useState("");
+    const [logFilters, setLogFilters] = useState({ category: 'all', level: 'all' });
     const { toast } = useToast();
 
     const { data: users, isLoading: loadingUsers } = useQuery<SuperAdminUser[]>({
@@ -75,6 +88,18 @@ export default function SuperAdminPage() {
     const { data: stats, isLoading: loadingStats } = useQuery<GlobalStats>({
         queryKey: ['/api/admin/stats'],
         refetchInterval: 3000,
+    });
+
+    const { data: systemLogs, isLoading: loadingLogs } = useQuery<SystemLog[]>({
+        queryKey: ['/api/admin/system-logs', logFilters],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (logFilters.category !== 'all') params.append('category', logFilters.category);
+            if (logFilters.level !== 'all') params.append('level', logFilters.level);
+            const res = await apiRequest("GET", `/api/admin/system-logs?${params.toString()}`);
+            return res.json();
+        },
+        refetchInterval: 5000,
     });
 
     const updateUserPlanMutation = useMutation({
@@ -163,242 +188,343 @@ export default function SuperAdminPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
-                        <Users className="w-4 h-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {loadingStats ? (
-                            <Skeleton className="h-8 w-16" />
-                        ) : (
-                            <>
-                                <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    {stats?.activeSubscriptions || 0} assinaturas ativas
-                                </p>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+            <Tabs defaultValue="overview" className="space-y-4">
+                <TabsList>
+                    <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+                    <TabsTrigger value="logs">Logs do Sistema</TabsTrigger>
+                </TabsList>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Dispositivos</CardTitle>
-                        <Wifi className="w-4 h-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {loadingStats ? (
-                            <Skeleton className="h-8 w-24" />
-                        ) : (
-                            <>
-                                <div className="text-2xl font-bold">
-                                    {stats?.connectedDevices || 0}/{stats?.totalDevices || 0}
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">conectados/total</p>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                <TabsContent value="overview" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
+                                <Users className="w-4 h-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                {loadingStats ? (
+                                    <Skeleton className="h-8 w-16" />
+                                ) : (
+                                    <>
+                                        <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {stats?.activeSubscriptions || 0} assinaturas ativas
+                                        </p>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Mensagens 24h</CardTitle>
-                        <Activity className="w-4 h-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {loadingStats ? (
-                            <Skeleton className="h-8 w-16" />
-                        ) : (
-                            <>
-                                <div className="text-2xl font-bold">{stats?.messagesLast24h || 0}</div>
-                                <p className="text-xs text-muted-foreground mt-1">últimas 24 horas</p>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Dispositivos</CardTitle>
+                                <Wifi className="w-4 h-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                {loadingStats ? (
+                                    <Skeleton className="h-8 w-24" />
+                                ) : (
+                                    <>
+                                        <div className="text-2xl font-bold">
+                                            {stats?.connectedDevices || 0}/{stats?.totalDevices || 0}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-1">conectados/total</p>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Distribuição</CardTitle>
-                        <BarChart3 className="w-4 h-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {loadingStats ? (
-                            <Skeleton className="h-8 w-full" />
-                        ) : (
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-muted-foreground">Free: {stats?.freeUsers || 0}</span>
-                                    <span className="text-muted-foreground">Basic: {stats?.basicUsers || 0}</span>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                    Full: {stats?.fullUsers || 0}
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Mensagens 24h</CardTitle>
+                                <Activity className="w-4 h-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                {loadingStats ? (
+                                    <Skeleton className="h-8 w-16" />
+                                ) : (
+                                    <>
+                                        <div className="text-2xl font-bold">{stats?.messagesLast24h || 0}</div>
+                                        <p className="text-xs text-muted-foreground mt-1">últimas 24 horas</p>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
 
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between flex-wrap gap-4">
-                        <div>
-                            <CardTitle>Gerenciamento de Usuários</CardTitle>
-                            <CardDescription>
-                                Visualize e gerencie todos os usuários do sistema
-                            </CardDescription>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                            <div className="relative w-64">
-                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Buscar usuários..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9"
-                                />
-                            </div>
-                            <Select value={planFilter} onValueChange={setPlanFilter}>
-                                <SelectTrigger className="w-40">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os planos</SelectItem>
-                                    <SelectItem value="free">Grátis</SelectItem>
-                                    <SelectItem value="basic">Básico</SelectItem>
-                                    <SelectItem value="full">Completo</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Distribuição</CardTitle>
+                                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                {loadingStats ? (
+                                    <Skeleton className="h-8 w-full" />
+                                ) : (
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-muted-foreground">Free: {stats?.freeUsers || 0}</span>
+                                            <span className="text-muted-foreground">Basic: {stats?.basicUsers || 0}</span>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            Full: {stats?.fullUsers || 0}
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    {loadingUsers ? (
-                        <div className="space-y-2">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <Skeleton key={i} className="h-12 w-full" />
-                            ))}
-                        </div>
-                    ) : filteredUsers && filteredUsers.length > 0 ? (
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Usuário</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Plano</TableHead>
-                                        <TableHead>Dispositivos</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Criado em</TableHead>
-                                        <TableHead className="text-right">Ações</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {filteredUsers.map((user) => {
-                                        const planBadge = getPlanBadge(user.currentPlan);
-                                        const isExpired = user.planExpiresAt && new Date(user.planExpiresAt) < new Date();
 
-                                        return (
-                                            <TableRow key={user.id}>
-                                                <TableCell className="font-medium">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                                <div>
+                                    <CardTitle>Gerenciamento de Usuários</CardTitle>
+                                    <CardDescription>
+                                        Visualize e gerencie todos os usuários do sistema
+                                    </CardDescription>
+                                </div>
+                                <div className="flex gap-2 flex-wrap">
+                                    <div className="relative w-64">
+                                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Buscar usuários..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="pl-9"
+                                        />
+                                    </div>
+                                    <Select value={planFilter} onValueChange={setPlanFilter}>
+                                        <SelectTrigger className="w-40">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os planos</SelectItem>
+                                            <SelectItem value="free">Grátis</SelectItem>
+                                            <SelectItem value="basic">Básico</SelectItem>
+                                            <SelectItem value="full">Completo</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {loadingUsers ? (
+                                <div className="space-y-2">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <Skeleton key={i} className="h-12 w-full" />
+                                    ))}
+                                </div>
+                            ) : filteredUsers && filteredUsers.length > 0 ? (
+                                <div className="rounded-md border">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Usuário</TableHead>
+                                                <TableHead>Email</TableHead>
+                                                <TableHead>Plano</TableHead>
+                                                <TableHead>Dispositivos</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead>Criado em</TableHead>
+                                                <TableHead className="text-right">Ações</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredUsers.map((user) => {
+                                                const planBadge = getPlanBadge(user.currentPlan);
+                                                const isExpired = user.planExpiresAt && new Date(user.planExpiresAt) < new Date();
+
+                                                return (
+                                                    <TableRow key={user.id}>
+                                                        <TableCell className="font-medium">
+                                                            <div className="flex items-center gap-2">
+                                                                {user.username}
+                                                                {user.isAdmin && <Crown className="w-3 h-3 text-yellow-500" />}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>{user.email || "—"}</TableCell>
+                                                        <TableCell>
+                                                            <Badge variant={planBadge.variant}>
+                                                                {planBadge.label}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-1">
+                                                                <Wifi className={`w-3 h-3 ${(user.connectedDevices || 0) > 0 ? 'text-green-500' : 'text-gray-400'}`} />
+                                                                <span className="text-sm">
+                                                                    {user.connectedDevices || 0}/{user.deviceCount || 0}
+                                                                </span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {isExpired ? (
+                                                                <Badge variant="destructive" className="text-xs">
+                                                                    <XCircle className="w-3 h-3 mr-1" />
+                                                                    Expirado
+                                                                </Badge>
+                                                            ) : user.planExpiresAt ? (
+                                                                <Badge variant="default" className="text-xs">
+                                                                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                                    Ativo
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="text-xs">
+                                                                    <Clock className="w-3 h-3 mr-1" />
+                                                                    Permanente
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm text-muted-foreground">
+                                                            {new Date(user.createdAt).toLocaleDateString('pt-BR')}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex gap-1 justify-end">
+                                                                <Select
+                                                                    value={user.currentPlan}
+                                                                    onValueChange={(plan) =>
+                                                                        updateUserPlanMutation.mutate({ userId: user.id, plan })
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-24">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="free">Grátis</SelectItem>
+                                                                        <SelectItem value="basic">Básico</SelectItem>
+                                                                        <SelectItem value="full">Completo</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setSelectedUserForReset({ id: user.id, username: user.username });
+                                                                        setIsResetDialogOpen(true);
+                                                                    }}
+                                                                    title="Resetar Senha"
+                                                                >
+                                                                    <Key className="w-4 h-4 text-blue-500" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Tem certeza que deseja remover o usuário ${user.username}?`)) {
+                                                                            deleteUserMutation.mutate(user.id);
+                                                                        }
+                                                                    }}
+                                                                    disabled={deleteUserMutation.isPending || user.isAdmin}
+                                                                >
+                                                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                                                </Button>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    Nenhum usuário encontrado
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="logs">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                                <div>
+                                    <CardTitle>Logs do Sistema</CardTitle>
+                                    <CardDescription>
+                                        Histórico de eventos, erros e atividades
+                                    </CardDescription>
+                                </div>
+                                <div className="flex gap-2 flex-wrap">
+                                    <Select
+                                        value={logFilters.category}
+                                        onValueChange={(v) => setLogFilters(prev => ({ ...prev, category: v }))}
+                                    >
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Categoria" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas Categorias</SelectItem>
+                                            <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                            <SelectItem value="ai">Inteligência Artificial</SelectItem>
+                                            <SelectItem value="bot">Bot / Lógica</SelectItem>
+                                            <SelectItem value="system">Sistema</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Select
+                                        value={logFilters.level}
+                                        onValueChange={(v) => setLogFilters(prev => ({ ...prev, level: v }))}
+                                    >
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Nível" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos Níveis</SelectItem>
+                                            <SelectItem value="info">Info</SelectItem>
+                                            <SelectItem value="warning">Aviso</SelectItem>
+                                            <SelectItem value="error">Erro</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ScrollArea className="h-[600px] rounded-md border p-4">
+                                {loadingLogs ? (
+                                    <div className="space-y-2">
+                                        {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+                                    </div>
+                                ) : systemLogs && systemLogs.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {systemLogs.map((log) => (
+                                            <div key={log.id} className="flex flex-col gap-1 border-b pb-3 last:border-0">
+                                                <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        {user.username}
-                                                        {user.isAdmin && <Crown className="w-3 h-3 text-yellow-500" />}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>{user.email || "—"}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={planBadge.variant}>
-                                                        {planBadge.label}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-1">
-                                                        <Wifi className={`w-3 h-3 ${(user.connectedDevices || 0) > 0 ? 'text-green-500' : 'text-gray-400'}`} />
-                                                        <span className="text-sm">
-                                                            {user.connectedDevices || 0}/{user.deviceCount || 0}
+                                                        <Badge variant={
+                                                            log.level === 'error' ? 'destructive' :
+                                                                log.level === 'warning' ? 'secondary' : 'outline'
+                                                        }>
+                                                            {log.level.toUpperCase()}
+                                                        </Badge>
+                                                        <Badge variant="outline">{log.category.toUpperCase()}</Badge>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {new Date(log.createdAt).toLocaleString('pt-BR')}
                                                         </span>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    {isExpired ? (
-                                                        <Badge variant="destructive" className="text-xs">
-                                                            <XCircle className="w-3 h-3 mr-1" />
-                                                            Expirado
-                                                        </Badge>
-                                                    ) : user.planExpiresAt ? (
-                                                        <Badge variant="default" className="text-xs">
-                                                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                                                            Ativo
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            <Clock className="w-3 h-3 mr-1" />
-                                                            Permanente
-                                                        </Badge>
+                                                    {log.deviceId && (
+                                                        <span className="text-xs text-muted-foreground font-mono">
+                                                            Device: {log.deviceId.slice(0, 8)}...
+                                                        </span>
                                                     )}
-                                                </TableCell>
-                                                <TableCell className="text-sm text-muted-foreground">
-                                                    {new Date(user.createdAt).toLocaleDateString('pt-BR')}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex gap-1 justify-end">
-                                                        <Select
-                                                            value={user.currentPlan}
-                                                            onValueChange={(plan) =>
-                                                                updateUserPlanMutation.mutate({ userId: user.id, plan })
-                                                            }
-                                                        >
-                                                            <SelectTrigger className="h-8 w-24">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="free">Grátis</SelectItem>
-                                                                <SelectItem value="basic">Básico</SelectItem>
-                                                                <SelectItem value="full">Completo</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setSelectedUserForReset({ id: user.id, username: user.username });
-                                                                setIsResetDialogOpen(true);
-                                                            }}
-                                                            title="Resetar Senha"
-                                                        >
-                                                            <Key className="w-4 h-4 text-blue-500" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                if (confirm(`Tem certeza que deseja remover o usuário ${user.username}?`)) {
-                                                                    deleteUserMutation.mutate(user.id);
-                                                                }
-                                                            }}
-                                                            disabled={deleteUserMutation.isPending || user.isAdmin}
-                                                        >
-                                                            <Trash2 className="w-4 h-4 text-destructive" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                            Nenhum usuário encontrado
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                                                </div>
+                                                <p className="text-sm font-medium mt-1">{log.message}</p>
+                                                {log.details && (
+                                                    <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-x-auto">
+                                                        {JSON.stringify(log.details, null, 2)}
+                                                    </pre>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        Nenhum log encontrado
+                                    </div>
+                                )}
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
 
             <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
                 <DialogContent>
