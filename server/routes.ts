@@ -289,8 +289,8 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
                 parts: [
                   { text: prompt },
                   {
-                    inline_data: {
-                      mime_type: mimeType,
+                    inlineData: {
+                      mimeType: mimeType,
                       data: base64Data
                     }
                   }
@@ -333,8 +333,8 @@ ${currentJson ? 'If the original is JSON, return valid JSON.' : 'Return ONLY the
                   parts: [
                     { text: prompt },
                     {
-                      inline_data: {
-                        mime_type: contentType,
+                      inlineData: {
+                        mimeType: contentType,
                         data: base64Data
                       }
                     }
