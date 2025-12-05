@@ -1,11 +1,13 @@
 import { storage } from "./storage";
 import * as whatsappManager from "./whatsappManager";
+import { logSystemEvent } from "./logManager";
 
 // Track running broadcasts
 const runningBroadcasts = new Map<string, NodeJS.Timeout>();
 
 export async function processBroadcast(broadcastId: string) {
   console.log(`[Broadcast] Starting processor for broadcast ${broadcastId}`);
+  logSystemEvent('broadcast', 'info', `Iniciando disparo ${broadcastId}`, { broadcastId });
 
   // Check if already running
   if (runningBroadcasts.has(broadcastId)) {
@@ -32,6 +34,7 @@ export async function processBroadcast(broadcastId: string) {
 
       if (broadcast.status === 'completed' || broadcast.status === 'failed') {
         console.log(`[Broadcast] Broadcast ${broadcastId} finished`);
+        logSystemEvent('broadcast', 'info', `Disparo ${broadcastId} finalizado`, { status: broadcast.status });
         stopBroadcast(broadcastId);
         return;
       }
@@ -47,6 +50,7 @@ export async function processBroadcast(broadcastId: string) {
           completedAt: new Date(),
         });
         console.log(`[Broadcast] All contacts processed for ${broadcastId}`);
+        logSystemEvent('broadcast', 'info', `Disparo ${broadcastId} concluído com sucesso`, { broadcastId });
         stopBroadcast(broadcastId);
         return;
       }
@@ -77,7 +81,9 @@ export async function processBroadcast(broadcastId: string) {
           nextContact.contactPhone,
           broadcast.message,
           broadcast.mediaUrl,
-          broadcast.mediaType
+          broadcast.mediaType,
+          broadcast.mediaUrls,
+          broadcast.mediaTypes
         );
 
         if (sent) {
@@ -98,31 +104,25 @@ export async function processBroadcast(broadcastId: string) {
         }
       } catch (error: any) {
         console.error(`[Broadcast] Error sending to ${nextContact.contactPhone}:`, error);
+        logSystemEvent('broadcast', 'error', `Erro ao enviar para ${nextContact.contactPhone}`, { error: error.message, broadcastId });
 
-        // Update contact status to failed
         await storage.updateBroadcastContact(nextContact.id, {
           status: 'failed',
-          errorMessage: error.message || 'Unknown error',
+          errorMessage: error.message || 'Failed to send',
         });
 
-        // Update broadcast failed count
         await storage.updateBroadcast(broadcastId, {
           failedCount: broadcast.failedCount + 1,
         });
       }
 
-      // Schedule next execution based on delay
-      const delayMs = (broadcast.delay || 20) * 1000;
-      const timeout = setTimeout(runLoop, delayMs);
+      // Schedule next with delay
+      const delay = (broadcast.delay || 20) * 1000;
+      const timeout = setTimeout(runLoop, delay);
       runningBroadcasts.set(broadcastId, timeout);
 
     } catch (error) {
-      console.error(`[Broadcast] Error processing broadcast ${broadcastId}:`, error);
-
-      // Mark as failed if too many errors
-      await storage.updateBroadcast(broadcastId, {
-        status: 'failed',
-      });
+      console.error(`[Broadcast] Critical error in processor:`, error);
       stopBroadcast(broadcastId);
     }
   };
@@ -138,12 +138,4 @@ export function stopBroadcast(broadcastId: string) {
     runningBroadcasts.delete(broadcastId);
     console.log(`[Broadcast] Stopped processor for ${broadcastId}`);
   }
-}
-
-export function stopAllBroadcasts() {
-  runningBroadcasts.forEach((timeout, broadcastId) => {
-    clearTimeout(timeout);
-    console.log(`[Broadcast] Stopped processor for ${broadcastId}`);
-  });
-  runningBroadcasts.clear();
 }
