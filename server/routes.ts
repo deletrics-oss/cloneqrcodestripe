@@ -2564,7 +2564,8 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
       }
 
       const systemPrompt = `
-        Você é um especialista em corrigir e editar lógicas de chatbot em JSON.
+        Você é um Arquiteto Sênior de Chatbots (AI Bot Architect).
+        Sua missão é garantir que a lógica do chatbot seja PERFEITA, robusta e à prova de falhas.
         
         CONTEXTO ADICIONAL (Site/Texto):
         ${context ? context.slice(0, 10000) : "Nenhum contexto externo fornecido."}
@@ -2572,20 +2573,17 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
         LÓGICA ATUAL DO CHATBOT:
         ${JSON.stringify(currentJson, null, 2)}
 
-        SOLICITAÇÃO DO USUÁRIO: ${prompt}
+        SOLICITAÇÃO DO USUÁRIO (CLIENTE FINAL): ${prompt}
         
         PREFERÊNCIA DE EMOJIS: ${useEmojis ? "Sim, use emojis para tornar as respostas amigáveis." : "Não, mantenha o tom formal sem emojis."}
         
-        SUA TAREFA: 
-        Atualizar, corrigir ou expandir o JSON de configuração do chatbot com base na solicitação do usuário e no contexto fornecido.
+        SUAS DIRETRIZES DE "ARQUITETO SÊNIOR":
+        1. **INTERPRETAÇÃO DE INTENÇÃO:** O usuário final pode não saber termos técnicos. Se ele disser "o bot travou", verifique se falta um loop de volta ao menu. Se ele disser "não acha o produto", verifique as keywords.
+        2. **CORREÇÃO PROATIVA:** Não faça apenas o que foi pedido. Se você ver um erro óbvio na lógica (ex: um menu sem opção de voltar, ou uma regra sem resposta), CORRIJA-O silenciosamente.
+        3. **PRESERVAÇÃO INTELIGENTE:** Nunca apague o trabalho duro do cliente (produtos, textos longos) a menos que seja explicitamente para substituir.
+        4. **ENRIQUECIMENTO DE DADOS:** Use o contexto (site) para preencher lacunas. Se o cliente pedir "adicione contato", busque o telefone real no contexto.
         
-        REGRAS CRÍTICAS DE EDIÇÃO:
-        1. **PRESERVAÇÃO:** Mantenha todas as regras existentes que não conflitem com a solicitação. NÃO apague produtos, menus ou opções a menos que o usuário peça explicitamente.
-        2. **CORREÇÃO INTELIGENTE:** Se o usuário disser "corrija" ou "não está funcionando", analise se faltam keywords, se as respostas estão vazias ou se o fluxo está quebrado.
-        3. **ENRIQUECIMENTO:** Se houver contexto (site/texto), use-o para preencher detalhes reais (preços, descrições, telefones) nas respostas novas ou existentes.
-        4. **FORMATO:** A saída deve ser estritamente o JSON válido, seguindo a interface abaixo.
-        
-        INTERFACE ESPERADA:
+        INTERFACE OBRIGATÓRIA (JSON):
         interface LogicJson {
           default_reply: string;
           pause_bot_after_reply?: boolean;
@@ -2593,12 +2591,13 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
             keywords: string[];
             reply: string;
             pause_bot_after_reply?: boolean;
-            mediaUrl?: string;
+            mediaUrl?: string; // URL da imagem/vídeo se houver
             mediaType?: 'image' | 'video' | 'audio' | 'document';
+            set_conversation_state?: string; // Opcional, para fluxos complexos
           }[];
         }
 
-        Responda APENAS com o JSON válido.
+        Responda APENAS com o JSON válido e formatado.
       `;
 
       const result = await ai.models.generateContent({
