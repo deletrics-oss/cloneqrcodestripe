@@ -1891,9 +1891,10 @@ Responda APENAS com o JSON válido.`;
   app.post('/api/broadcasts', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { name, deviceId, message, contacts, mediaUrl, mediaType, delay } = req.body;
+      const { name, deviceId, message, contacts, mediaUrl, mediaType, mediaUrls, mediaTypes, delay } = req.body;
 
       console.log(`[Broadcast] Creating broadcast. Contacts payload type: ${typeof contacts}, IsArray: ${Array.isArray(contacts)}, Length: ${contacts?.length}`);
+      console.log(`[Broadcast] Media: mediaUrls=${mediaUrls?.length || 0}, mediaUrl=${mediaUrl ? 'yes' : 'no'}`);
       if (Array.isArray(contacts) && contacts.length > 0) {
         console.log(`[Broadcast] First contact sample:`, contacts[0]);
       }
@@ -1923,14 +1924,16 @@ Responda APENAS com o JSON válido.`;
         return res.status(400).json({ message: "No valid contacts provided" });
       }
 
-      // Create broadcast
+      // Create broadcast - support both legacy (mediaUrl) and new (mediaUrls) formats
       const broadcast = await storage.createBroadcast({
         userId,
         deviceId,
         name,
         message,
-        mediaUrl,
-        mediaType,
+        mediaUrl: mediaUrl || (mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : null),
+        mediaType: mediaType || (mediaTypes && mediaTypes.length > 0 ? mediaTypes[0] : null),
+        mediaUrls: mediaUrls || (mediaUrl ? [mediaUrl] : null),
+        mediaTypes: mediaTypes || (mediaType ? [mediaType] : null),
         delay: delay || 20,
         status: 'pending',
         totalContacts: validContacts.length,

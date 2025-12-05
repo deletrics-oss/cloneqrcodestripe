@@ -230,8 +230,10 @@ export const broadcasts = pgTable("broadcasts", {
   deviceId: varchar("device_id").notNull().references(() => whatsappDevices.id, { onDelete: 'cascade' }),
   name: varchar("name").notNull(),
   message: text("message").notNull(),
-  mediaUrl: text("media_url"),
-  mediaType: varchar("media_type"), // image, video, document, audio
+  mediaUrl: text("media_url"), // Legacy single media URL
+  mediaType: varchar("media_type"), // Legacy: image, video, document, audio
+  mediaUrls: text("media_urls").array(), // New: Array of media URLs
+  mediaTypes: text("media_types").array(), // New: Array of media types
   status: broadcastStatusEnum("status").notNull().default('pending'),
   totalContacts: integer("total_contacts").notNull().default(0),
   sentCount: integer("sent_count").notNull().default(0),
