@@ -737,10 +737,30 @@ export default function LogicEditor() {
                                         const data = await res.json();
                                         if (data.url) {
                                           const fullUrl = window.location.origin + data.url;
-                                          navigator.clipboard.writeText(fullUrl);
+
+                                          // Copy to clipboard with fallback
+                                          try {
+                                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                              await navigator.clipboard.writeText(fullUrl);
+                                            } else {
+                                              // Fallback for non-HTTPS
+                                              const textArea = document.createElement('textarea');
+                                              textArea.value = fullUrl;
+                                              textArea.style.position = 'fixed';
+                                              textArea.style.left = '-999999px';
+                                              document.body.appendChild(textArea);
+                                              textArea.select();
+                                              document.execCommand('copy');
+                                              document.body.removeChild(textArea);
+                                            }
+                                          } catch (clipErr) {
+                                            console.warn("Clipboard failed, showing URL instead:", clipErr);
+                                          }
+
                                           toast({
                                             title: "Sucesso!",
-                                            description: "URL copiada para a área de transferência. Cole no prompt ou no JSON."
+                                            description: `URL: ${fullUrl}`,
+                                            duration: 10000
                                           });
                                           setAiPrompt(prev => prev + `\n\n(Use esta imagem: ${fullUrl})`);
                                         } else {
