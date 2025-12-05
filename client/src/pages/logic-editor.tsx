@@ -728,6 +728,12 @@ export default function LogicEditor() {
                                           method: 'POST',
                                           body: formData
                                         });
+
+                                        if (!res.ok) {
+                                          const errorData = await res.json();
+                                          throw new Error(errorData.message || "Erro ao fazer upload");
+                                        }
+
                                         const data = await res.json();
                                         if (data.url) {
                                           const fullUrl = window.location.origin + data.url;
@@ -737,11 +743,14 @@ export default function LogicEditor() {
                                             description: "URL copiada para a área de transferência. Cole no prompt ou no JSON."
                                           });
                                           setAiPrompt(prev => prev + `\n\n(Use esta imagem: ${fullUrl})`);
+                                        } else {
+                                          throw new Error("URL não retornada pelo servidor");
                                         }
-                                      } catch (err) {
+                                      } catch (err: any) {
+                                        console.error("Upload error:", err);
                                         toast({
                                           title: "Erro",
-                                          description: "Falha ao enviar arquivo.",
+                                          description: err.message || "Falha ao enviar arquivo.",
                                           variant: "destructive"
                                         });
                                       }

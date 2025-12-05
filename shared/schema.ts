@@ -427,7 +427,7 @@ export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
 
-export type LogCategory = 'whatsapp' | 'ai' | 'bot' | 'system';
+export type LogCategory = 'whatsapp' | 'ai' | 'bot' | 'system' | 'broadcast';
 export type LogLevel = 'info' | 'warning' | 'error';
 
 export const systemLogsRelations = relations(systemLogs, ({ one }) => ({
