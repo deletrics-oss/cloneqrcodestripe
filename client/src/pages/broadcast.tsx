@@ -294,11 +294,11 @@ export default function BroadcastPage() {
                       const mediaMatch = t.content.match(/\[MEDIA:(IMAGE|VIDEO):(.*?)\]/);
                       if (mediaMatch) {
                         setMediaType(mediaMatch[1].toLowerCase() as "image" | "video");
-                        setMediaUrl(mediaMatch[2]);
+                        setMediaUrls([mediaMatch[2]]);
                         setMessage(t.content.replace(mediaMatch[0], '').trim());
                       } else {
                         setMediaType("none");
-                        setMediaUrl("");
+                        setMediaUrls([]);
                         setMessage(t.content);
                       }
                     }
@@ -695,7 +695,7 @@ export default function BroadcastPage() {
                             setMessage(broadcast.message);
                             setSelectedDevice(broadcast.deviceId);
                             setMediaType(broadcast.mediaType || 'none');
-                            setMediaUrl(broadcast.mediaUrl || '');
+                            setMediaUrls(broadcast.mediaUrls || (broadcast.mediaUrl ? [broadcast.mediaUrl] : []));
                             setIsCreateDialogOpen(true);
                           }, 0);
                         }}
