@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import bcrypt from "bcryptjs";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
