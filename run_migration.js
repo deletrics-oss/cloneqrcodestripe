@@ -3,6 +3,31 @@ import pg from 'pg';
 const { Pool } = pg;
 
 // Tenta pegar DATABASE_URL do ambiente
+// Tenta pegar DATABASE_URL do ambiente
+if (!process.env.DATABASE_URL) {
+    try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const envPath = path.resolve(process.cwd(), '.env');
+        if (fs.existsSync(envPath)) {
+            const envConfig = fs.readFileSync(envPath, 'utf8');
+            envConfig.split('\n').forEach(line => {
+                const parts = line.split('=');
+                if (parts.length >= 2) {
+                    const key = parts[0].trim();
+                    const value = parts.slice(1).join('=').trim();
+                    if (key && value && !key.startsWith('#')) {
+                        process.env[key] = value;
+                    }
+                }
+            });
+            console.log("✅ .env carregado manualmente.");
+        }
+    } catch (e) {
+        console.error("⚠️ Erro ao tentar ler .env manualmente:", e);
+    }
+}
+
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
