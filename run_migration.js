@@ -33,6 +33,8 @@ async function runMigration() {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+
+      ALTER TABLE whatsapp_devices ADD COLUMN IF NOT EXISTS should_transcribe BOOLEAN NOT NULL DEFAULT TRUE;
     `;
 
         await client.query(sql);
