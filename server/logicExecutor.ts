@@ -7,6 +7,7 @@ export interface LogicRule {
   keywords: string[];
   reply: string;
   mediaUrl?: string;
+  image_url?: string; // Alias for mediaUrl (legacy/user support)
   mediaType?: 'image' | 'video' | 'audio' | 'document';
   pause_bot_after_reply?: boolean;
   set_conversation_state?: string;
@@ -76,7 +77,7 @@ export function executeLogic(
     if (exactMatch) {
       return {
         reply: rule.reply,
-        mediaUrl: rule.mediaUrl,
+        mediaUrl: rule.mediaUrl || rule.image_url,
         mediaType: rule.mediaType,
         shouldPause: rule.pause_bot_after_reply ?? false,
         conversationState: rule.set_conversation_state,
@@ -99,7 +100,7 @@ export function executeLogic(
     if (wordMatch) {
       return {
         reply: rule.reply,
-        mediaUrl: rule.mediaUrl,
+        mediaUrl: rule.mediaUrl || rule.image_url,
         mediaType: rule.mediaType,
         shouldPause: rule.pause_bot_after_reply ?? false,
         conversationState: rule.set_conversation_state,
@@ -120,7 +121,7 @@ export function executeLogic(
     if (partialMatch) {
       return {
         reply: rule.reply,
-        mediaUrl: rule.mediaUrl,
+        mediaUrl: rule.mediaUrl || rule.image_url,
         mediaType: rule.mediaType,
         shouldPause: rule.pause_bot_after_reply ?? false,
         conversationState: rule.set_conversation_state,

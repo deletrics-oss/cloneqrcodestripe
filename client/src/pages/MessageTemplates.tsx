@@ -435,9 +435,9 @@ export default function MessageTemplates() {
 
                     <div className="flex-1 min-h-0 overflow-hidden">
                         <Tabs defaultValue="editor" className="h-full flex flex-col">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="editor">✏️ Editor</TabsTrigger>
-                                <TabsTrigger value="extract">🍕 Extrair Conteúdo</TabsTrigger>
+                            <TabsList className="grid w-full grid-cols-2 h-auto">
+                                <TabsTrigger value="editor" className="py-2">✏️ Editor</TabsTrigger>
+                                <TabsTrigger value="extract" className="py-2">🍕 Extrair Conteúdo</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="editor" className="flex-1 overflow-hidden mt-4">

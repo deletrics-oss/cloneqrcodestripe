@@ -102,6 +102,7 @@ export const conversations = pgTable("conversations", {
   deviceId: varchar("device_id").notNull().references(() => whatsappDevices.id, { onDelete: 'cascade' }),
   contactName: varchar("contact_name").notNull(),
   contactPhone: varchar("contact_phone").notNull(),
+  contactProfilePic: text("contact_profile_pic"),
   lastMessageAt: timestamp("last_message_at").defaultNow(),
   unreadCount: integer("unread_count").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
@@ -302,6 +303,8 @@ export const broadcastTemplates = pgTable("broadcast_templates", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar("name").notNull(),
   content: text("content").notNull(),
+  mediaUrls: text("media_urls").array(), // Suporte para múltiplas mídias
+  mediaTypes: text("media_types").array(), // Tipos correspondentes (image, video, etc)
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -321,6 +324,8 @@ export const messageTemplates = pgTable("message_templates", {
   name: varchar("name").notNull(),
   content: text("content").notNull(),
   category: varchar("category"),
+  mediaUrls: text("media_urls").array(), // Suporte para múltiplas mídias
+  mediaTypes: text("media_types").array(), // Tipos correspondentes
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

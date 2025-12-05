@@ -663,6 +663,59 @@ export default function LogicEditor() {
                             data-testid="input-ai-prompt"
                           />
 
+                          {/* Media Upload Helper */}
+                          <div className="space-y-2 border p-3 rounded-md bg-muted/50">
+                            <Label className="text-xs font-semibold">Adicionar Imagem/Mídia (Opcional)</Label>
+                            <div className="flex gap-2 items-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const input = document.createElement('input');
+                                  input.type = 'file';
+                                  input.accept = 'image/*,video/*,application/pdf';
+                                  input.onchange = async (e) => {
+                                    const file = (e.target as HTMLInputElement).files?.[0];
+                                    if (file) {
+                                      const formData = new FormData();
+                                      formData.append('file', file);
+                                      try {
+                                        toast({ title: "Enviando...", description: "Fazendo upload da mídia." });
+                                        const res = await fetch('/api/upload', {
+                                          method: 'POST',
+                                          body: formData
+                                        });
+                                        const data = await res.json();
+                                        if (data.url) {
+                                          const fullUrl = window.location.origin + data.url;
+                                          navigator.clipboard.writeText(fullUrl);
+                                          toast({
+                                            title: "Sucesso!",
+                                            description: "URL copiada para a área de transferência. Cole no prompt ou no JSON."
+                                          });
+                                          setAiPrompt(prev => prev + `\n\n(Use esta imagem: ${fullUrl})`);
+                                        }
+                                      } catch (err) {
+                                        toast({
+                                          title: "Erro",
+                                          description: "Falha ao enviar arquivo.",
+                                          variant: "destructive"
+                                        });
+                                      }
+                                    }
+                                  };
+                                  input.click();
+                                }}
+                              >
+                                <Upload className="w-3 h-3 mr-2" />
+                                Upload de Mídia
+                              </Button>
+                              <p className="text-xs text-muted-foreground">
+                                Faça upload e o link será copiado automaticamente.
+                              </p>
+                            </div>
+                          </div>
+
                           {/* Source Inputs (Available for both Edit and Create) */}
                           <div className="space-y-2">
                             <Label>Fonte de Conhecimento (Opcional)</Label>

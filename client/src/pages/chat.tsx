@@ -232,6 +232,7 @@ export default function Chat() {
                     deviceId={conversation.deviceId}
                     contactId={conversation.contactPhone}
                     name={conversation.contactName}
+                    profilePicUrl={conversation.contactProfilePic}
                     className="h-12 w-12"
                   />
                   <div className="flex-1 min-w-0">
@@ -279,6 +280,7 @@ export default function Chat() {
                   deviceId={selectedConversation.deviceId}
                   contactId={selectedConversation.contactPhone}
                   name={selectedConversation.contactName}
+                  profilePicUrl={selectedConversation.contactProfilePic}
                 />
                 <div>
                   <p className="font-medium" data-testid="text-contact-name">

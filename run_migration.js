@@ -63,6 +63,14 @@ async function runMigration() {
       
       ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url TEXT;
       ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR;
+      
+      ALTER TABLE broadcast_templates ADD COLUMN IF NOT EXISTS media_urls TEXT[];
+      ALTER TABLE broadcast_templates ADD COLUMN IF NOT EXISTS media_types TEXT[];
+      
+      ALTER TABLE message_templates ADD COLUMN IF NOT EXISTS media_urls TEXT[];
+      ALTER TABLE message_templates ADD COLUMN IF NOT EXISTS media_types TEXT[];
+
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS contact_profile_pic TEXT;
     `;
 
         await client.query(sql);

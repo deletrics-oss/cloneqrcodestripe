@@ -466,7 +466,9 @@ export async function sendWhatsAppMessage(
   number: string,
   text: string,
   mediaUrl?: string,
-  mediaType?: string
+  mediaType?: string,
+  mediaUrls?: string[],
+  mediaTypes?: string[]
 ): Promise<boolean> {
   const session = sessions.get(deviceId);
 
@@ -482,38 +484,59 @@ export async function sendWhatsAppMessage(
       chatId = `${number.replace(/\D/g, '')}@c.us`;
     }
 
+    // 1. Send Text (if exists)
+    if (text) {
+      await session.client.sendMessage(chatId, text);
+      await saveMessageToDb(deviceId, number, text, 'outgoing', true);
+    }
 
-    if (mediaUrl) {
+    // 2. Send Single Media (Legacy support)
+    if (mediaUrl && (!mediaUrls || mediaUrls.length === 0)) {
       try {
         let media;
         if (mediaUrl.startsWith('data:')) {
           const matches = mediaUrl.match(/^data:(.+);base64,(.+)$/);
           if (matches) {
-            const mimetype = matches[1];
-            const data = matches[2];
-            media = new MessageMedia(mimetype, data, "media");
+            media = new MessageMedia(matches[1], matches[2], "media");
           }
         } else {
           media = await MessageMedia.fromUrl(mediaUrl);
         }
 
         if (media) {
-          await session.client.sendMessage(chatId, media, { caption: text });
-          console.log(`[WhatsApp] Media message sent to ${chatId} from device ${deviceId}`);
-        } else {
-          throw new Error("Failed to create media object");
+          await session.client.sendMessage(chatId, media);
+          await saveMessageToDb(deviceId, number, `[Media] ${mediaType || 'file'}`, 'outgoing', true);
         }
-      } catch (mediaError) {
-        console.error(`[WhatsApp] Error sending media, falling back to text:`, mediaError);
-        await session.client.sendMessage(chatId, text);
+      } catch (err) {
+        console.error(`[WhatsApp] Failed to send single media:`, err);
       }
-    } else {
-      await session.client.sendMessage(chatId, text);
-      console.log(`[WhatsApp] Text message sent to ${chatId} from device ${deviceId}`);
     }
 
-    // Save to DB
-    await saveMessageToDb(deviceId, number, mediaUrl ? `[Media] ${text}` : text, 'outgoing', true);
+    // 3. Send Multiple Media (New support)
+    if (mediaUrls && mediaUrls.length > 0) {
+      for (let i = 0; i < mediaUrls.length; i++) {
+        const url = mediaUrls[i];
+        const type = mediaTypes?.[i] || 'image';
+        try {
+          let media;
+          if (url.startsWith('data:')) {
+            const matches = url.match(/^data:(.+);base64,(.+)$/);
+            if (matches) media = new MessageMedia(matches[1], matches[2], "media");
+          } else {
+            media = await MessageMedia.fromUrl(url);
+          }
+
+          if (media) {
+            await session.client.sendMessage(chatId, media);
+            await saveMessageToDb(deviceId, number, `[Media] ${type}`, 'outgoing', true);
+            // Small delay between media to ensure order
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (err) {
+          console.error(`[WhatsApp] Failed to send media ${i + 1}:`, err);
+        }
+      }
+    }
 
     return true;
   } catch (error) {
@@ -586,27 +609,38 @@ export async function syncContacts(deviceId: string): Promise<boolean> {
     let updatedCount = 0;
 
     for (const chat of chats) {
-      if (chat.isGroup) continue; // Skip groups for now for conversation sync
+      if (chat.isGroup) continue; // Skip groups for now
 
       const number = chat.id.user;
       const name = chat.name || number;
+      let profilePicUrl = null;
+
+      // Try to get profile pic
+      try {
+        profilePicUrl = await session.client.getProfilePicUrl(chat.id._serialized);
+      } catch (e) {
+        // Ignore profile pic errors
+      }
 
       // Find matching conversation
       const conversation = dbConversations.find(c => c.contactPhone === number);
 
       if (conversation) {
-        // Update name if different
-        if (conversation.contactName !== name) {
-          await storage.updateConversation(conversation.id, { contactName: name });
+        // Update name/pic if different
+        if (conversation.contactName !== name || conversation.contactProfilePic !== profilePicUrl) {
+          await storage.updateConversation(conversation.id, {
+            contactName: name,
+            contactProfilePic: profilePicUrl
+          });
           updatedCount++;
         }
       }
     }
 
-    console.log(`[WhatsApp] Synced ${updatedCount} conversation names`);
+    console.log(`[WhatsApp] Synced ${updatedCount} contacts for device ${deviceId}`);
     return true;
   } catch (error) {
-    console.error(`[WhatsApp] Error syncing contacts:`, error);
+    console.error(`[WhatsApp] Error syncing contacts for device ${deviceId}:`, error);
     return false;
   }
 }

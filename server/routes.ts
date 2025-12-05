@@ -19,6 +19,33 @@ import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Upload endpoint
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Nenhum arquivo enviado" });
+    }
+
+    const fileExtension = path.extname(req.file.originalname);
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
+    const uploadDir = path.join(process.cwd(), "uploads");
+
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filePath = path.join(uploadDir, fileName);
+    fs.writeFileSync(filePath, req.file.buffer);
+
+    // Return the public URL
+    const fileUrl = `/uploads/${fileName}`;
+    res.json({ url: fileUrl });
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({ message: "Erro ao fazer upload" });
+  }
+});
+
 // Initialize Stripe (only if key is provided)
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2025-11-17.clover" })
