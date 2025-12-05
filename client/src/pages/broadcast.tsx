@@ -691,13 +691,23 @@ export default function BroadcastPage() {
                         onClick={() => {
                           resetForm();
                           setTimeout(() => {
+                            const urls = broadcast.mediaUrls || (broadcast.mediaUrl ? [broadcast.mediaUrl] : []);
+                            let type = broadcast.mediaType;
+
+                            // Auto-detect type if missing but has content
+                            if ((!type || type === 'none') && urls.length > 0) {
+                              const u = urls[0].toLowerCase();
+                              if (u.includes('video') || u.endsWith('.mp4')) type = 'video';
+                              else type = 'image';
+                            }
+
                             setBroadcastName(`${broadcast.name} (Reenvio)`);
                             setMessage(broadcast.message);
                             setSelectedDevice(broadcast.deviceId);
-                            setMediaType(broadcast.mediaType || 'none');
-                            setMediaUrls(broadcast.mediaUrls || (broadcast.mediaUrl ? [broadcast.mediaUrl] : []));
+                            setMediaType(type || 'none');
+                            setMediaUrls(urls);
                             setIsCreateDialogOpen(true);
-                          }, 0);
+                          }, 100);
                         }}
                         title="Duplicar e Editar"
                       >
