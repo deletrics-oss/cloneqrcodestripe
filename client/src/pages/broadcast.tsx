@@ -32,7 +32,8 @@ export default function BroadcastPage() {
   const [aiPrompt, setAIPrompt] = useState("");
   const [aiContext, setAiContext] = useState("");
   const [mediaType, setMediaType] = useState<"none" | "image" | "video">("none");
-  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [currentInputUrl, setCurrentInputUrl] = useState("");
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [delay, setDelay] = useState(20);
@@ -142,18 +143,33 @@ export default function BroadcastPage() {
     setSelectedContacts([]);
     setSelectAll(false);
     setMediaType("none");
-    setMediaUrl("");
+    setMediaUrls([]);
+    setCurrentInputUrl("");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMediaUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setMediaUrls(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleAddUrl = () => {
+    if (currentInputUrl) {
+      setMediaUrls(prev => [...prev, currentInputUrl]);
+      setCurrentInputUrl("");
+    }
+  };
+
+  const handleRemoveMedia = (index: number) => {
+    setMediaUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const filteredContacts = contacts?.filter(c =>
@@ -209,8 +225,12 @@ export default function BroadcastPage() {
       deviceId: selectedDevice,
       message,
       contacts: selectedContacts,
-      mediaUrl: mediaType !== 'none' ? mediaUrl : undefined,
-      mediaType: mediaType !== 'none' ? mediaType : undefined,
+      mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+      mediaTypes: mediaUrls.length > 0 ? mediaUrls.map(url => {
+        if (url.startsWith('data:video') || url.match(/\.(mp4|webm|ogg)$/i)) return 'video';
+        if (url.startsWith('data:image') || url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) return 'image';
+        return mediaType;
+      }) : undefined,
       delay
     });
   };
@@ -356,48 +376,75 @@ export default function BroadcastPage() {
                 </Select>
 
                 {mediaType !== 'none' && (
-                  <div className="space-y-2 mt-2 p-4 border rounded-md bg-muted/20">
-                    <Label>URL ou Upload</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="https://..."
-                        value={mediaUrl.startsWith('data:') ? '' : mediaUrl}
-                        onChange={(e) => setMediaUrl(e.target.value)}
-                        disabled={mediaUrl.startsWith('data:')}
-                      />
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        accept={mediaType === 'image' ? "image/*" : "video/*"}
-                        onChange={handleFileUpload}
-                      />
-                      <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Upload
-                      </Button>
+                  <div className="space-y-4 mt-2 p-4 border rounded-md bg-muted/20">
+                    <div className="space-y-2">
+                      <Label>Adicionar {mediaType === 'image' ? 'Imagem' : 'Vídeo'}</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="https://..."
+                          value={currentInputUrl}
+                          onChange={(e) => setCurrentInputUrl(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddUrl();
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="secondary"
+                          onClick={handleAddUrl}
+                          disabled={!currentInputUrl}
+                          type="button"
+                        >
+                          Add URL
+                        </Button>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          className="hidden"
+                          accept={mediaType === 'image' ? "image/*" : "video/*"}
+                          multiple
+                          onChange={handleFileUpload}
+                        />
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          Upload
+                        </Button>
+                      </div>
                     </div>
 
-                    {mediaUrl && (
-                      <div className="mt-2">
-                        <p className="text-xs text-muted-foreground mb-1">Preview:</p>
-                        {mediaType === 'image' ? (
-                          <img src={mediaUrl} alt="Preview" className="max-h-40 rounded border" />
-                        ) : (
-                          <video src={mediaUrl} controls className="max-h-40 rounded border" />
-                        )}
-                        {mediaUrl.startsWith('data:') && (
-                          <Button variant="ghost" size="sm" onClick={() => setMediaUrl("")} className="mt-1 text-destructive h-auto p-0">
-                            Remover arquivo
-                          </Button>
-                        )}
+                    {mediaUrls.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Mídias Selecionadas ({mediaUrls.length})</Label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {mediaUrls.map((url, index) => (
+                            <div key={index} className="relative group border rounded-md overflow-hidden bg-background">
+                              {mediaType === 'image' || url.match(/\.(jpeg|jpg|gif|png|webp)$/i) || url.startsWith('data:image') ? (
+                                <img src={url} alt={`Media ${index}`} className="w-full h-32 object-cover" />
+                              ) : (
+                                <video src={url} className="w-full h-32 object-cover" />
+                              )}
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleRemoveMedia(index)}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
+
+
               </div>
 
               {selectedDevice && (

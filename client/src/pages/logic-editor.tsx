@@ -663,13 +663,56 @@ export default function LogicEditor() {
                             data-testid="input-ai-prompt"
                           />
 
-                          {/* Media Upload Helper */}
-                          <div className="space-y-2 border p-3 rounded-md bg-muted/50">
-                            <Label className="text-xs font-semibold">Adicionar Imagem/Mídia (Opcional)</Label>
-                            <div className="flex gap-2 items-center">
+
+
+                          {/* Source Inputs (Available for both Edit and Create) */}
+                          <div className="space-y-2">
+                            <Label>Fonte de Conhecimento (Opcional)</Label>
+                            <div className="flex gap-2">
+                              <Button
+                                variant={aiSourceType === 'text' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setAiSourceType('text')}
+                                className="flex-1"
+                              >
+                                Texto
+                              </Button>
+                              <Button
+                                variant={aiSourceType === 'url' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setAiSourceType('url')}
+                                className="flex-1"
+                              >
+                                URL do Site
+                              </Button>
+                            </div>
+                            {aiSourceType === 'text' ? (
+                              <Textarea
+                                placeholder="Cole aqui o texto de base (ex: cardápio, FAQ)..."
+                                value={aiSourceContent}
+                                onChange={(e) => setAiSourceContent(e.target.value)}
+                                className="h-24"
+                              />
+                            ) : (
+                              <Input
+                                placeholder="https://seu-site.com"
+                                value={aiSourceContent}
+                                onChange={(e) => setAiSourceContent(e.target.value)}
+                              />
+                            )}
+                          </div>
+
+                          {/* Media Upload Helper - Moved here for visibility */}
+                          <div className="space-y-2 border border-blue-200 p-3 rounded-md bg-blue-50/50">
+                            <Label className="text-xs font-semibold flex items-center gap-2 text-blue-800">
+                              <Upload className="w-3 h-3" />
+                              Adicionar Imagem/Mídia (Opcional)
+                            </Label>
+                            <div className="flex gap-2 items-center flex-wrap">
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="bg-white hover:bg-blue-50 border-blue-200 text-blue-700"
                                 onClick={() => {
                                   const input = document.createElement('input');
                                   input.type = 'file';
@@ -711,46 +754,9 @@ export default function LogicEditor() {
                                 Upload de Mídia
                               </Button>
                               <p className="text-xs text-muted-foreground">
-                                Faça upload e o link será copiado automaticamente.
+                                Faça upload e o link será copiado automaticamente para o prompt.
                               </p>
                             </div>
-                          </div>
-
-                          {/* Source Inputs (Available for both Edit and Create) */}
-                          <div className="space-y-2">
-                            <Label>Fonte de Conhecimento (Opcional)</Label>
-                            <div className="flex gap-2">
-                              <Button
-                                variant={aiSourceType === 'text' ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => setAiSourceType('text')}
-                                className="flex-1"
-                              >
-                                Texto
-                              </Button>
-                              <Button
-                                variant={aiSourceType === 'url' ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => setAiSourceType('url')}
-                                className="flex-1"
-                              >
-                                URL do Site
-                              </Button>
-                            </div>
-                            {aiSourceType === 'text' ? (
-                              <Textarea
-                                placeholder="Cole aqui o texto de base (ex: cardápio, FAQ)..."
-                                value={aiSourceContent}
-                                onChange={(e) => setAiSourceContent(e.target.value)}
-                                className="h-24"
-                              />
-                            ) : (
-                              <Input
-                                placeholder="https://seu-site.com"
-                                value={aiSourceContent}
-                                onChange={(e) => setAiSourceContent(e.target.value)}
-                              />
-                            )}
                           </div>
 
                           <div className="flex items-center space-x-2">
