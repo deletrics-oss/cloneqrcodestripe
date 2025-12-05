@@ -60,6 +60,9 @@ async function runMigration() {
       );
 
       ALTER TABLE whatsapp_devices ADD COLUMN IF NOT EXISTS should_transcribe BOOLEAN NOT NULL DEFAULT TRUE;
+      
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url TEXT;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR;
     `;
 
         await client.query(sql);

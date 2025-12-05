@@ -64,21 +64,60 @@ export function executeLogic(
     };
   }
 
-  // Procurar regra que matches
+  // 1. First pass: Check for EXACT matches (highest priority)
   for (const rule of logicJson.rules) {
-    // Skip invalid rules
-    if (!rule || !Array.isArray(rule.keywords)) {
-      console.warn('[LogicExecutor] Skipping invalid rule:', rule);
-      continue;
-    }
+    if (!rule || !Array.isArray(rule.keywords)) continue;
 
-    // Verificar se alguma keyword da regra está na mensagem
-    const matches = rule.keywords.some(keyword => {
+    const exactMatch = rule.keywords.some(keyword => {
+      const normalizedKeyword = normalizeText(keyword);
+      return normalizedMessage === normalizedKeyword;
+    });
+
+    if (exactMatch) {
+      return {
+        reply: rule.reply,
+        mediaUrl: rule.mediaUrl,
+        mediaType: rule.mediaType,
+        shouldPause: rule.pause_bot_after_reply ?? false,
+        conversationState: rule.set_conversation_state,
+      };
+    }
+  }
+
+  // 2. Second pass: Check for WORD BOUNDARY matches (medium priority)
+  // This prevents "1" from matching inside "p1", but allows "1" to match "1" or "opcao 1"
+  for (const rule of logicJson.rules) {
+    if (!rule || !Array.isArray(rule.keywords)) continue;
+
+    const wordMatch = rule.keywords.some(keyword => {
+      const normalizedKeyword = normalizeText(keyword);
+      // Create regex for whole word match
+      const regex = new RegExp(`\\b${normalizedKeyword}\\b`, 'i');
+      return regex.test(normalizedMessage);
+    });
+
+    if (wordMatch) {
+      return {
+        reply: rule.reply,
+        mediaUrl: rule.mediaUrl,
+        mediaType: rule.mediaType,
+        shouldPause: rule.pause_bot_after_reply ?? false,
+        conversationState: rule.set_conversation_state,
+      };
+    }
+  }
+
+  // 3. Third pass: Fallback to simple includes (lowest priority)
+  // Only if no exact or word match found
+  for (const rule of logicJson.rules) {
+    if (!rule || !Array.isArray(rule.keywords)) continue;
+
+    const partialMatch = rule.keywords.some(keyword => {
       const normalizedKeyword = normalizeText(keyword);
       return normalizedMessage.includes(normalizedKeyword);
     });
 
-    if (matches) {
+    if (partialMatch) {
       return {
         reply: rule.reply,
         mediaUrl: rule.mediaUrl,
