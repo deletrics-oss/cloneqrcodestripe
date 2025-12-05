@@ -1357,66 +1357,7 @@ Responda APENAS com o JSON válido.`;
     }
   });
 
-  // Edit existing logic with AI
-  app.post('/api/ai/edit-logic', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
 
-      if (!user) {
-        return res.status(403).json({
-          message: "Usuário não autenticado"
-        });
-      }
-
-      // Use user's API key if available, otherwise fall back to system key
-      const ai = getAI(user.geminiApiKey);
-      if (!ai) {
-        return res.status(503).json({ message: "Gemini AI not configured - missing API key" });
-      }
-
-      const { currentJson, prompt } = req.body;
-
-      if (!currentJson || !prompt) {
-        return res.status(400).json({ message: "Current JSON and prompt are required" });
-      }
-
-      const systemPrompt = `Você é um assistente especialista em editar lógicas JSON para chatbots WhatsApp.
-Você receberá um JSON existente e uma instrução de alteração.
-Sua tarefa é modificar o JSON para atender à instrução, mantendo a estrutura válida.
-
-Estrutura esperada do JSON:
-- "rules": array de regras com "keywords" (array de strings) e "reply" (string)
-- "default_reply": mensagem padrão opcional
-- "pause_bot_after_reply": booleano opcional
-
-JSON Atual:
-${JSON.stringify(currentJson, null, 2)}
-
-Instrução de alteração:
-${prompt}
-
-Responda APENAS com o JSON modificado válido, sem explicações adicionais.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
-        config: {
-          systemInstruction: systemPrompt,
-          responseMimeType: "application/json",
-        },
-        contents: "Modifique o JSON conforme solicitado.",
-      });
-
-      const text = response.text || "{}";
-      const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-      const modifiedJson = JSON.parse(cleanText || "{}");
-
-      res.json({ logicJson: modifiedJson });
-    } catch (error) {
-      console.error("Error editing logic with AI:", error);
-      res.status(500).json({ message: "Failed to edit logic" });
-    }
-  });
 
   // ============ STRIPE ROUTES ============
   // NOTE: For production, set STRIPE_PRICE_BASIC and STRIPE_PRICE_FULL environment variables
@@ -2587,7 +2528,7 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
 
   app.post('/api/ai/edit-logic', isAuthenticated, async (req: any, res) => {
     try {
-      const { currentJson, prompt, sourceType, sourceContent } = req.body;
+      const { currentJson, prompt, sourceType, sourceContent, useEmojis } = req.body;
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
 
@@ -2623,29 +2564,28 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
       }
 
       const systemPrompt = `
-        You are an expert chatbot logic editor.
+        Você é um especialista em corrigir e editar lógicas de chatbot em JSON.
         
-        CONTEXT FROM WEBSITE:
-        ${context ? context.slice(0, 10000) : "No website context provided."}
+        CONTEXTO ADICIONAL (Site/Texto):
+        ${context ? context.slice(0, 10000) : "Nenhum contexto externo fornecido."}
         
-        EXISTING CHATBOT LOGIC:
+        LÓGICA ATUAL DO CHATBOT:
         ${JSON.stringify(currentJson, null, 2)}
 
-        USER'S MODIFICATION REQUEST: ${prompt}
+        SOLICITAÇÃO DO USUÁRIO: ${prompt}
         
-        TASK: Update the JSON chatbot configuration based on the request and context.
+        PREFERÊNCIA DE EMOJIS: ${useEmojis ? "Sim, use emojis para tornar as respostas amigáveis." : "Não, mantenha o tom formal sem emojis."}
         
-        CRITICAL RULES:
-        1. If website context is provided, you MUST use it to enrich the responses.
-           - Update contact info with real data
-           - Update product lists with real items
-           - Add specific links found in the context
+        SUA TAREFA: 
+        Atualizar, corrigir ou expandir o JSON de configuração do chatbot com base na solicitação do usuário e no contexto fornecido.
         
-        2. Keep existing rules if they are good, but IMPROVE their content with real data.
+        REGRAS CRÍTICAS DE EDIÇÃO:
+        1. **PRESERVAÇÃO:** Mantenha todas as regras existentes que não conflitem com a solicitação. NÃO apague produtos, menus ou opções a menos que o usuário peça explicitamente.
+        2. **CORREÇÃO INTELIGENTE:** Se o usuário disser "corrija" ou "não está funcionando", analise se faltam keywords, se as respostas estão vazias ou se o fluxo está quebrado.
+        3. **ENRIQUECIMENTO:** Se houver contexto (site/texto), use-o para preencher detalhes reais (preços, descrições, telefones) nas respostas novas ou existentes.
+        4. **FORMATO:** A saída deve ser estritamente o JSON válido, seguindo a interface abaixo.
         
-        3. If the user asks to "create a bot for [URL]", treat it as a full rebuild using the website data.
-        
-        4. Structure the response as valid JSON matching this interface:
+        INTERFACE ESPERADA:
         interface LogicJson {
           default_reply: string;
           pause_bot_after_reply?: boolean;
@@ -2658,19 +2598,23 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
           }[];
         }
 
-        Output ONLY valid JSON.
+        Responda APENAS com o JSON válido.
       `;
 
       const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: systemPrompt,
+        model: "gemini-2.0-flash-exp",
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+        },
+        contents: "Gere o JSON atualizado.",
       });
 
       const text = result.text || "";
       const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const logicJson = JSON.parse(jsonStr);
 
-      res.json(logicJson);
+      res.json({ logicJson }); // Wrap in logicJson object to match frontend expectation
     } catch (error) {
       console.error("AI Logic Edit error:", error);
       res.status(500).json({ message: "Failed to edit logic" });
@@ -2679,7 +2623,7 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
 
   app.post('/api/ai/generate-and-save-logic', isAuthenticated, async (req: any, res) => {
     try {
-      const { prompt, logicName, sourceType, sourceContent } = req.body;
+      const { prompt, logicName, sourceType, sourceContent, useEmojis } = req.body;
       const userId = req.user.claims.sub;
 
       const user = await storage.getUser(userId);
@@ -2717,30 +2661,27 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
       }
 
       // 2. Generate logic with AI
+      // 2. Generate logic with AI
       const systemPrompt = `
-        You are an expert chatbot logic generator.
+        Você é um especialista em criar lógicas de chatbot em JSON para empresas brasileiras.
         
-        CONTEXT FROM WEBSITE:
-        ${context ? context.slice(0, 10000) : "No website context provided."}
+        CONTEXTO DO SITE/TEXTO:
+        ${context ? context.slice(0, 10000) : "Nenhum contexto fornecido."}
         
-        USER REQUEST: ${prompt}
+        SOLICITAÇÃO DO USUÁRIO: ${prompt}
         
-        TASK: Create a JSON chatbot configuration for this specific business.
+        PREFERÊNCIA DE EMOJIS: ${useEmojis ? "Sim, use emojis." : "Não, mantenha formal."}
         
-        CRITICAL RULES:
-        1. You MUST use the "CONTEXT FROM WEBSITE" above to extract:
-           - Real company name
-           - Real phone numbers and emails
-           - Real product names
-           - Real address
+        SUA TAREFA: 
+        Criar uma configuração completa de chatbot em JSON para este negócio específico.
         
-        2. Do NOT create generic rules. Create specific rules based on the website content.
+        REGRAS CRÍTICAS:
+        1. **USE O CONTEXTO:** Extraia o nome real da empresa, telefones, endereços e listas de produtos do contexto fornecido.
+        2. **SEJA ESPECÍFICO:** Não crie regras genéricas. Se o site lista "Pizza de Calabresa", crie uma regra para isso.
+        3. **MENU PRINCIPAL:** Crie uma regra para "menu" ou "início" que liste as opções disponíveis de forma clara.
+        4. **CONTATO:** Crie sempre uma regra para "contato" ou "falar com atendente".
         
-        3. If the website lists products, create a rule for "produtos" listing 3-4 specific items found.
-        
-        4. If the website has contact info, create a rule for "contato" with the real data.
-        
-        5. Structure the response as valid JSON matching this interface:
+        INTERFACE ESPERADA:
         interface LogicJson {
           default_reply: string;
           pause_bot_after_reply?: boolean;
@@ -2753,12 +2694,16 @@ Responda APENAS com a mensagem, sem aspas ou formatação extra.`;
           }[];
         }
 
-        Output ONLY valid JSON.
+        Responda APENAS com o JSON válido.
       `;
 
       const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: systemPrompt,
+        model: "gemini-2.0-flash-exp",
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+        },
+        contents: "Gere o JSON completo.",
       });
 
       const jsonStr = (result.text || "").replace(/```json/g, '').replace(/```/g, '').trim();
